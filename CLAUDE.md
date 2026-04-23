@@ -101,6 +101,37 @@ All hyperparameters centralized in `seven/config_v2.py`:
 - Loss weights: SSIM 0.2 → 0.7 (v3 was 0.5), Grad 0.1 → 0.2 (better structure/edges)
 - Epochs: 200 → 400 (v3 was 300; more thorough training)
 
+## Output Locations & Packaging
+
+All training outputs are centralized under `seven/` for easy server-to-local transfer:
+
+**Pretraining (MAE)** — configured in `seven/config_v2.py`:
+- `seven/checkpoints_v2/` — `mae_v2_epoch_*.pth` (every 10 epochs), `mae_v2_best.pth`, `mae_v2_encoder_only.pth`
+- `seven/logs_v2/` — `train_YYYYMMDD_HHMMSS.log` (text), `train_log_v2.json` (metrics)
+- `seven/recon_vis_v2/` — `recon_v2_epoch_*.png` (training vis), `reconstruction_check_v2.png` (inference)
+
+**Segmentation** — configured in `seven/seg/config_seg.py`:
+- `seven/seg/checkpoints/` — `seg_fold{N}_best.pth` (one per LOPO fold)
+- `seven/seg/logs/` — `results_{split_mode}_YYYYMMDD_HHMMSS.json`
+- `seven/seg/vis/fold_{N}/` — `epoch_*.png` per fold
+
+**Packaging for download**:
+```bash
+# All outputs (pretrain + segmentation)
+cd seven && tar -czf all_outputs.tar.gz checkpoints_v2/ logs_v2/ recon_vis_v2/ seg/
+
+# Pretrain only
+cd seven && tar -czf pretrain_outputs.tar.gz checkpoints_v2/ logs_v2/ recon_vis_v2/
+
+# Segmentation only
+cd seven && tar -czf seg_outputs.tar.gz seg/checkpoints/ seg/logs/ seg/vis/
+
+# Essentials only (best model + final logs)
+cd seven && tar -czf essentials.tar.gz \
+  checkpoints_v2/mae_v2_best.pth checkpoints_v2/mae_v2_encoder_only.pth \
+  logs_v2/train_log_v2.json seg/checkpoints/ seg/logs/
+```
+
 ## Key Design Decisions
 
 **Foreground-Aware Masking**: Unlike standard MAE which masks randomly, this implementation biases masking toward tissue regions (controlled by `FG_MASK_BIAS=0.6`). This forces the model to focus on reconstructing clinically relevant areas rather than background.

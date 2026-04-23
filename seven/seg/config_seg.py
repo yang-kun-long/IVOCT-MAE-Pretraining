@@ -7,7 +7,7 @@ ROOT_DIR = Path(__file__).parent.parent.parent
 DATA_DIR = ROOT_DIR / "DATA"
 SEVEN_DIR = ROOT_DIR / "seven"
 
-MAE_CHECKPOINT = ROOT_DIR / "results" / "pretrain" / "v4" / "mae_v2_best.pth"
+MAE_CHECKPOINT = SEVEN_DIR / "checkpoints_v2" / "mae_v2_best.pth"
 SEG_CHECKPOINT_DIR = SEVEN_DIR / "seg" / "checkpoints"
 SEG_LOG_DIR = SEVEN_DIR / "seg" / "logs"
 SEG_VIS_DIR = SEVEN_DIR / "seg" / "vis"
@@ -30,7 +30,6 @@ IN_CHANS = 1
 # =========================
 # 模型（必须与 checkpoint 匹配）
 # =========================
-# 注意：checkpoint 真实架构是 patch=8，不是 config_v2.py 里的 16
 PATCH_SIZE = 8
 EMBED_DIM = 384
 DEPTH = 12
