@@ -17,6 +17,7 @@ The current codebase is small, but several documents describe an intended or his
 - `result/train_log_v2.json`: historical MAE training metrics snapshot
 - `seven/`: actual Python code for pretraining, evaluation, inference, and segmentation
 - `.claude/settings.local.json`: local Claude permissions/preferences
+- `scripts/remote_ops.py`: local SSH/SFTP helper for running server commands and transferring files
 
 ## Actual Runnable Entry Points
 
@@ -155,3 +156,5 @@ If the request is to continue development rather than just inspect:
 ## Local Claude Notes
 
 `.claude/settings.local.json` currently allows broad local Python execution and basic git initialization/add operations in Claude. That file is environment-specific; do not rely on it as project logic.
+
+For local remote access workflows, use `scripts/remote_ops.py`. Session credentials should be saved only to `.claude/remote_session.json`, which is git-ignored and intended to change across conversations or machines.

@@ -42,3 +42,6 @@ venv/
 env/
 ENV/
 .venv/
+
+# Local remote session secrets
+.claude/remote_session.json
