@@ -1,12 +1,15 @@
 import torch
 import torch.nn as nn
 import sys
+import importlib.util
 from pathlib import Path
 
-# Add parent directory to path to import from seven/
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from models.mae_hybrid_v2 import HybridMAEViT
+# Load mae_hybrid_v2 directly by file path to avoid models/ name collision
+_mae_path = Path(__file__).parent.parent.parent / "models" / "mae_hybrid_v2.py"
+_spec = importlib.util.spec_from_file_location("mae_hybrid_v2", _mae_path)
+_mae_module = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_mae_module)
+HybridMAEViT = _mae_module.HybridMAEViT
 
 
 class UpBlock(nn.Module):
