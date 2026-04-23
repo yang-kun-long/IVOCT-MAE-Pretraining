@@ -13,7 +13,7 @@ model = MAESegmenter(config.MAE_CHECKPOINT, freeze_encoder=True).cuda()
 import glob
 ckpts = sorted(glob.glob(str(config.SEG_CHECKPOINT_DIR / 'seg_fold0_best.pth')))
 if ckpts:
-    ckpt = torch.load(ckpts[-1], map_location='cpu')
+    ckpt = torch.load(ckpts[-1], map_location='cpu', weights_only=False)
     model.load_state_dict(ckpt['model'])
     print(f"Loaded checkpoint, epoch={ckpt['epoch']}, dice={ckpt['metrics']['dice_mean']:.4f}")
 
