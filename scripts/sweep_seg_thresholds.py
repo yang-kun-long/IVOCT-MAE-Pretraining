@@ -33,6 +33,42 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def load_checkpoint_state(model: torch.nn.Module, state_dict: dict[str, torch.Tensor]) -> None:
+    """Load both old BN-based and new GN-based decoder checkpoints.
+
+    Older checkpoints contain BatchNorm buffers (`running_mean`, `running_var`,
+    `num_batches_tracked`) that do not exist in the new GroupNorm decoder.
+    Those buffers can be safely ignored while still loading matching weights.
+    """
+    try:
+        model.load_state_dict(state_dict, strict=True)
+        return
+    except RuntimeError as exc:
+        incompatible = model.load_state_dict(state_dict, strict=False)
+        ignored_unexpected = [
+            key
+            for key in incompatible.unexpected_keys
+            if any(token in key for token in ("running_mean", "running_var", "num_batches_tracked"))
+        ]
+        remaining_unexpected = [
+            key for key in incompatible.unexpected_keys if key not in ignored_unexpected
+        ]
+
+        if incompatible.missing_keys or remaining_unexpected:
+            raise RuntimeError(
+                "Checkpoint is incompatible with the current segmentation model. "
+                f"Missing keys: {incompatible.missing_keys}; "
+                f"Unexpected keys: {remaining_unexpected}"
+            ) from exc
+
+        if ignored_unexpected:
+            print(
+                "[compat] Ignored legacy BatchNorm buffers when loading checkpoint: "
+                + ", ".join(ignored_unexpected[:4])
+                + (" ..." if len(ignored_unexpected) > 4 else "")
+            )
+
+
 def main() -> None:
     root = Path(__file__).resolve().parent.parent
     seg_dir = root / "seven" / "seg"
@@ -80,7 +116,7 @@ def main() -> None:
         )
 
         model = MAESegmenter(config.MAE_CHECKPOINT, freeze_encoder=config.FREEZE_ENCODER).to(device)
-        model.load_state_dict(ckpt["model"], strict=True)
+        load_checkpoint_state(model, ckpt["model"])
         model.eval()
 
         fold_result = {

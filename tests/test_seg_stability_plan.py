@@ -29,6 +29,12 @@ class SegStabilityPlanTests(unittest.TestCase):
         script = ROOT / "scripts" / "sweep_seg_thresholds.py"
         self.assertTrue(script.exists(), f"Missing script: {script}")
 
+    def test_threshold_sweep_script_has_checkpoint_compatibility_fallback(self):
+        content = (ROOT / "scripts" / "sweep_seg_thresholds.py").read_text(encoding="utf-8")
+        self.assertIn("strict=False", content)
+        self.assertIn("running_mean", content)
+        self.assertIn("num_batches_tracked", content)
+
 
 if __name__ == "__main__":
     unittest.main()
