@@ -30,18 +30,17 @@ def dice_loss(pred_logit, target, eps=1e-6):
 
 def seg_loss(pred_logit, target, lambda_dice=1.0, lambda_bce=1.0):
     """
-    Combined Dice + BCE loss.
-
-    Args:
-        pred_logit: [B, 1, H, W] logits
-        target: [B, 1, H, W] binary mask
-        lambda_dice: weight for Dice loss
-        lambda_bce: weight for BCE loss
-
-    Returns:
-        scalar loss
+    Combined Dice + BCE loss with automatic pos_weight for class imbalance.
     """
-    bce = F.binary_cross_entropy_with_logits(pred_logit, target)
+    # Compute pos_weight per batch to handle severe foreground/background imbalance
+    num_pos = target.sum()
+    num_neg = target.numel() - num_pos
+    pos_weight = (num_neg / (num_pos + 1e-6)).clamp(max=100.0)
+
+    bce = F.binary_cross_entropy_with_logits(
+        pred_logit, target,
+        pos_weight=torch.tensor(pos_weight, device=pred_logit.device)
+    )
     dice = dice_loss(pred_logit, target)
 
     return lambda_dice * dice + lambda_bce * bce
