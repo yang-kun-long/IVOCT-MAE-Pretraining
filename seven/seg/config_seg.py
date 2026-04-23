@@ -46,7 +46,7 @@ EVAL_THRESHOLD = 0.5         # 评估时的二值化阈值
 # 训练
 # =========================
 EPOCHS = 200
-BATCH_SIZE = 16
+BATCH_SIZE = 4
 BASE_LR = 1e-2               # 只训练temperature参数
 ENCODER_LR_SCALE = 0.0
 WEIGHT_DECAY = 0.05
