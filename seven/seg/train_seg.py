@@ -61,7 +61,11 @@ def train_one_epoch(model, loader, optimizer, scaler, device, epoch):
             loss = seg_loss(
                 logits, masks,
                 lambda_dice=config.LAMBDA_DICE,
-                lambda_bce=config.LAMBDA_BCE
+                lambda_bce=config.LAMBDA_BCE,
+                loss_mode=config.LOSS_MODE,
+                tversky_alpha=config.TVERSKY_ALPHA,
+                tversky_beta=config.TVERSKY_BETA,
+                focal_tversky_gamma=config.FOCAL_TVERSKY_GAMMA,
             )
 
         if config.USE_AMP:

@@ -53,8 +53,12 @@ EVAL_THRESHOLD = 0.3         # 与 baseline 一致；新 checkpoint 再做阈值
 # =========================
 # 损失
 # =========================
+LOSS_MODE = "focal_tversky"  # "dice_focal" | "tversky" | "focal_tversky"
 LAMBDA_DICE = 1.0
 LAMBDA_BCE = 1.0
+TVERSKY_ALPHA = 0.3          # 降低 FP 权重以抑制过分割
+TVERSKY_BETA = 0.7           # 提高 FN 权重，保持召回不过度塌缩
+FOCAL_TVERSKY_GAMMA = 1.33
 
 # =========================
 # 其他
