@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 # Add parent directory to path to import from seven/
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from models.mae_hybrid_v2 import HybridMAEViT
 
