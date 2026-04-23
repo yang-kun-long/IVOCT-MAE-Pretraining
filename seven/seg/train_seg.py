@@ -8,8 +8,7 @@ from datetime import datetime
 import torch
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import CosineAnnealingLR
-from torch.cuda.amp import autocast, GradScaler
+from torch.amp import autocast, GradScaler
 
 sys.path.insert(0, str(Path(__file__).parent))        # seven/seg/ first
 sys.path.insert(1, str(Path(__file__).parent.parent))  # seven/ second
@@ -49,6 +48,7 @@ def train_one_epoch(model, loader, optimizer, scaler, device, epoch):
     model.train()
     total_loss = 0
     num_batches = 0
+    amp_enabled = config.USE_AMP and device.type == 'cuda'
 
     for batch_idx, batch in enumerate(loader):
         images = batch["image"].to(device)
@@ -56,7 +56,7 @@ def train_one_epoch(model, loader, optimizer, scaler, device, epoch):
 
         optimizer.zero_grad()
 
-        with autocast(enabled=config.USE_AMP):
+        with autocast(device_type='cuda', enabled=amp_enabled):
             logits = model(images)
             loss = seg_loss(
                 logits, masks,
@@ -82,25 +82,30 @@ def train_one_epoch(model, loader, optimizer, scaler, device, epoch):
     return avg_loss
 
 
-def evaluate(model, loader, device, vis_dir=None, epoch=None):
+def evaluate(model, loader, device, threshold, vis_dir=None, epoch=None):
     """Evaluate on validation set"""
     model.eval()
     metrics_list = []
+    amp_enabled = config.USE_AMP and device.type == 'cuda'
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(loader):
             images = batch["image"].to(device)
             masks = batch["mask"].to(device)
 
-            with autocast(enabled=config.USE_AMP):
+            with autocast(device_type='cuda', enabled=amp_enabled):
                 logits = model(images)
 
-            metrics = compute_metrics(logits, masks)
+            metrics = compute_metrics(logits, masks, threshold=threshold)
             metrics_list.append(metrics)
 
             if batch_idx == 0:
                 probs = torch.sigmoid(logits)
-                print(f"  [diag] prob mean={probs.mean():.3f} max={probs.max():.3f} pred>0.3={( probs>0.3).float().mean():.3f}")
+                pred_ratio = (probs > threshold).float().mean()
+                print(
+                    f"  [diag] prob mean={probs.mean():.3f} "
+                    f"max={probs.max():.3f} pred>{threshold:.1f}={pred_ratio:.3f}"
+                )
 
             # Save visualization for first batch
             if batch_idx == 0 and vis_dir is not None and epoch is not None:
@@ -171,11 +176,13 @@ def train_fold(fold_idx, train_patients, val_patients, device):
 
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
-    scaler = GradScaler(enabled=config.USE_AMP)
+    scaler = GradScaler('cuda', enabled=config.USE_AMP and device.type == 'cuda')
 
     # Training loop
     best_dice = 0
     best_epoch = 0
+    best_metrics = None
+    patience_counter = 0
     fold_vis_dir = config.SEG_VIS_DIR / f"fold_{fold_idx}"
     fold_vis_dir.mkdir(exist_ok=True)
 
@@ -184,7 +191,14 @@ def train_fold(fold_idx, train_patients, val_patients, device):
         print(f"LR: encoder={optimizer.param_groups[0]['lr']:.2e}, decoder={optimizer.param_groups[1]['lr']:.2e}")
 
         train_loss = train_one_epoch(model, train_loader, optimizer, scaler, device, epoch)
-        val_metrics = evaluate(model, val_loader, device, fold_vis_dir, epoch)
+        val_metrics = evaluate(
+            model,
+            val_loader,
+            device,
+            threshold=config.EVAL_THRESHOLD,
+            vis_dir=fold_vis_dir,
+            epoch=epoch,
+        )
 
         scheduler.step()
 
@@ -196,6 +210,8 @@ def train_fold(fold_idx, train_patients, val_patients, device):
         if val_metrics['dice_mean'] > best_dice:
             best_dice = val_metrics['dice_mean']
             best_epoch = epoch
+            best_metrics = val_metrics
+            patience_counter = 0
             ckpt_path = config.SEG_CHECKPOINT_DIR / f"seg_fold{fold_idx}_best.pth"
             torch.save({
                 'epoch': epoch,
@@ -207,9 +223,18 @@ def train_fold(fold_idx, train_patients, val_patients, device):
                 'val_patients': val_patients
             }, ckpt_path)
             print(f"  → Saved best model (Dice={best_dice:.4f})")
+        else:
+            patience_counter += 1
+
+        if epoch + 1 >= config.MIN_EPOCHS and patience_counter >= config.EARLY_STOPPING_PATIENCE:
+            print(
+                f"  → Early stopping at epoch {epoch + 1} "
+                f"(best Dice={best_dice:.4f}, best epoch={best_epoch + 1})"
+            )
+            break
 
     print(f"\nFold {fold_idx + 1} finished. Best Dice: {best_dice:.4f} at epoch {best_epoch + 1}")
-    return best_dice, val_metrics
+    return best_dice, best_metrics if best_metrics is not None else val_metrics
 
 
 def main():

@@ -1,0 +1,34 @@
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+class SegStabilityPlanTests(unittest.TestCase):
+    def test_config_exposes_stability_knobs(self):
+        content = (ROOT / "seven" / "seg" / "config_seg.py").read_text(encoding="utf-8")
+        self.assertIn("EVAL_THRESHOLD", content)
+        self.assertIn("EARLY_STOPPING_PATIENCE", content)
+        self.assertIn("MIN_EPOCHS", content)
+
+    def test_train_loop_uses_threshold_and_early_stopping(self):
+        content = (ROOT / "seven" / "seg" / "train_seg.py").read_text(encoding="utf-8")
+        self.assertIn("threshold=config.EVAL_THRESHOLD", content)
+        self.assertIn("EARLY_STOPPING_PATIENCE", content)
+        self.assertIn("MIN_EPOCHS", content)
+        self.assertIn("patience_counter", content)
+        self.assertIn("Early stopping", content)
+
+    def test_decoder_uses_groupnorm_not_batchnorm(self):
+        content = (ROOT / "seven" / "seg" / "models" / "seg_model.py").read_text(encoding="utf-8")
+        self.assertIn("GroupNorm", content)
+        self.assertNotIn("BatchNorm2d", content)
+
+    def test_threshold_sweep_script_exists(self):
+        script = ROOT / "scripts" / "sweep_seg_thresholds.py"
+        self.assertTrue(script.exists(), f"Missing script: {script}")
+
+
+if __name__ == "__main__":
+    unittest.main()

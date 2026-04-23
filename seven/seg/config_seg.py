@@ -39,13 +39,16 @@ FREEZE_ENCODER = True        # 先冻结encoder，只训练decoder
 # =========================
 # 训练
 # =========================
-EPOCHS = 300
+EPOCHS = 180
 BATCH_SIZE = 4
-BASE_LR = 1e-3               # decoder lr，encoder冻结时可以更大
+BASE_LR = 5e-4               # 更保守的 decoder lr，减少小样本高波动
 ENCODER_LR_SCALE = 0.0       # 冻结时无效
 WEIGHT_DECAY = 0.05
 WARMUP_EPOCHS = 5
 USE_AMP = True
+MIN_EPOCHS = 80
+EARLY_STOPPING_PATIENCE = 50
+EVAL_THRESHOLD = 0.5         # 默认评估阈值；可用阈值 sweep 脚本再校准
 
 # =========================
 # 损失
