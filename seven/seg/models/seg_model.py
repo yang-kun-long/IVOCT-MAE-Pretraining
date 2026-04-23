@@ -90,13 +90,18 @@ class MAESegmenter(nn.Module):
             [B, 1, 256, 256] segmentation logits (before sigmoid)
         """
         B = x.shape[0]
+        model_training = self.encoder.training
 
-        # Create dummy foreground mask (all ones, so all tokens are kept)
-        fg_mask = torch.ones(B, 1, 256, 256, device=x.device)
-
-        # Run encoder with mask_ratio=0 (no masking, keep all tokens)
-        with torch.set_grad_enabled(not self.encoder.training or True):
-            latent, _, _ = self.encoder.forward_encoder(x, fg_mask, mask_ratio=0.0)
+        # Bypass random_masking to preserve spatial token order
+        with torch.no_grad() if not model_training else torch.enable_grad():
+            x = self.encoder.patch_embed(x)
+            x = x + self.encoder.pos_embed[:, 1:, :]
+            cls_token = self.encoder.cls_token + self.encoder.pos_embed[:, :1, :]
+            cls_tokens = cls_token.expand(B, -1, -1)
+            x = torch.cat((cls_tokens, x), dim=1)
+            for blk in self.encoder.blocks:
+                x = blk(x)
+            latent = self.encoder.norm(x)
 
         # latent: [B, 1025, 384] (1024 patches + 1 CLS token)
         # Remove CLS token and reshape to spatial grid
