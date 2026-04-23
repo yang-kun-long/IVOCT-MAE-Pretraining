@@ -34,15 +34,15 @@ PATCH_SIZE = 8
 EMBED_DIM = 384
 DEPTH = 12
 NUM_HEADS = 6
-FREEZE_ENCODER = False       # 全量 fine-tune
+FREEZE_ENCODER = True        # 先冻结encoder，只训练decoder
 
 # =========================
 # 训练
 # =========================
-EPOCHS = 200
+EPOCHS = 300
 BATCH_SIZE = 4
-BASE_LR = 3e-4               # decoder lr
-ENCODER_LR_SCALE = 0.05      # encoder lr = BASE_LR * 0.05
+BASE_LR = 1e-3               # decoder lr，encoder冻结时可以更大
+ENCODER_LR_SCALE = 0.0       # 冻结时无效
 WEIGHT_DECAY = 0.05
 WARMUP_EPOCHS = 5
 USE_AMP = True
