@@ -15,98 +15,78 @@ HybridMAEViT = _mae_module.HybridMAEViT
 
 class PrototypicalSegHead(nn.Module):
     """
-    Prototypical segmentation head for few-shot learning.
+    Prototypical segmentation head with learnable projection.
 
-    Computes foreground/background prototypes from support set,
-    then segments query images via cosine similarity.
+    Projects encoder features into a discriminative space,
+    then segments via prototype matching.
     """
-    def __init__(self, feat_dim=384, upsample_factor=8):
+    def __init__(self, feat_dim=384, proj_dim=128, upsample_factor=8):
         super().__init__()
-        self.feat_dim = feat_dim
         self.upsample_factor = upsample_factor
 
-        # Optional: learnable temperature for similarity scaling
+        # Learnable projection: maps encoder features to discriminative space
+        self.proj = nn.Sequential(
+            nn.Conv2d(feat_dim, 256, kernel_size=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, proj_dim, kernel_size=1),
+        )
+
         self.temperature = nn.Parameter(torch.tensor(10.0))
 
     def extract_prototypes(self, support_feats, support_masks):
         """
-        Extract foreground and background prototypes from support set.
-
         Args:
-            support_feats: [K, C, H, W] support features
-            support_masks: [K, 1, H_mask, W_mask] support masks (0/1)
-
+            support_feats: [K, proj_dim, H, W] projected support features
+            support_masks: [K, 1, H_mask, W_mask] support masks
         Returns:
-            fg_proto: [C] foreground prototype
-            bg_proto: [C] background prototype
+            fg_proto: [proj_dim]
+            bg_proto: [proj_dim]
         """
         K, C, H, W = support_feats.shape
 
-        # Downsample masks to match feature resolution
-        masks_down = F.interpolate(
-            support_masks.float(),
-            size=(H, W),
-            mode='nearest'
-        )  # [K, 1, H, W]
+        masks_down = F.interpolate(support_masks.float(), size=(H, W), mode='nearest')
+        feats_flat = support_feats.view(K, C, -1)   # [K, C, H*W]
+        masks_flat = masks_down.view(K, 1, -1)       # [K, 1, H*W]
 
-        # Flatten spatial dimensions
-        feats_flat = support_feats.view(K, C, -1)  # [K, C, H*W]
-        masks_flat = masks_down.view(K, 1, -1)     # [K, 1, H*W]
+        fg_mask = masks_flat > 0.5
+        fg_proto = (feats_flat * fg_mask.float()).sum(dim=(0, 2)) / fg_mask.float().sum(dim=(0, 2)).clamp(min=1)
 
-        # Compute foreground prototype (masked average pooling)
-        fg_mask = masks_flat > 0.5  # [K, 1, H*W]
-        fg_count = fg_mask.sum(dim=(0, 2), keepdim=True).clamp(min=1)  # [1, 1, 1]
-        fg_sum = (feats_flat * fg_mask.float()).sum(dim=(0, 2))  # [C]
-        fg_proto = fg_sum / fg_count.squeeze()  # [C]
-
-        # Compute background prototype
         bg_mask = ~fg_mask
-        bg_count = bg_mask.sum(dim=(0, 2), keepdim=True).clamp(min=1)
-        bg_sum = (feats_flat * bg_mask.float()).sum(dim=(0, 2))
-        bg_proto = bg_sum / bg_count.squeeze()
+        bg_proto = (feats_flat * bg_mask.float()).sum(dim=(0, 2)) / bg_mask.float().sum(dim=(0, 2)).clamp(min=1)
 
         return fg_proto, bg_proto
 
     def forward(self, query_feats, support_feats, support_masks):
         """
-        Segment query images using prototypes from support set.
-
         Args:
-            query_feats: [B, C, H, W] query features
-            support_feats: [K, C, H, W] support features
-            support_masks: [K, 1, H_mask, W_mask] support masks
-
+            query_feats:   [B, feat_dim, H, W]
+            support_feats: [K, feat_dim, H, W]
+            support_masks: [K, 1, H_mask, W_mask]
         Returns:
-            logits: [B, 1, H_out, W_out] segmentation logits
+            logits: [B, 1, H*upsample, W*upsample]
         """
-        B, C, H, W = query_feats.shape
+        # Project to discriminative space
+        query_proj = self.proj(query_feats)      # [B, proj_dim, H, W]
+        support_proj = self.proj(support_feats)  # [K, proj_dim, H, W]
 
-        # Extract prototypes
-        fg_proto, bg_proto = self.extract_prototypes(support_feats, support_masks)
+        B, C, H, W = query_proj.shape
 
-        # Normalize features and prototypes for cosine similarity
-        query_norm = F.normalize(query_feats, dim=1)  # [B, C, H, W]
-        fg_proto_norm = F.normalize(fg_proto.unsqueeze(0), dim=1)  # [1, C]
-        bg_proto_norm = F.normalize(bg_proto.unsqueeze(0), dim=1)
+        # Extract prototypes from projected support features
+        fg_proto, bg_proto = self.extract_prototypes(support_proj, support_masks)
 
-        # Compute cosine similarity
-        # query_norm: [B, C, H, W] -> [B, C, H*W]
-        # proto_norm: [1, C] -> [C, 1]
-        query_flat = query_norm.view(B, C, -1)  # [B, C, H*W]
+        # Cosine similarity
+        query_norm = F.normalize(query_proj, dim=1)           # [B, C, H, W]
+        fg_norm = F.normalize(fg_proto, dim=0).view(1, C, 1, 1)
+        bg_norm = F.normalize(bg_proto, dim=0).view(1, C, 1, 1)
 
-        fg_sim = torch.matmul(fg_proto_norm, query_flat)  # [1, H*W]
-        bg_sim = torch.matmul(bg_proto_norm, query_flat)
+        fg_sim = (query_norm * fg_norm).sum(dim=1, keepdim=True)  # [B, 1, H, W]
+        bg_sim = (query_norm * bg_norm).sum(dim=1, keepdim=True)
 
-        fg_sim = fg_sim.view(B, 1, H, W)  # [B, 1, H, W]
-        bg_sim = bg_sim.view(B, 1, H, W)
-
-        # Compute logits: fg_sim - bg_sim, scaled by temperature
         logits = (fg_sim - bg_sim) * self.temperature
 
         # Upsample to original image size
-        H_out = H * self.upsample_factor
-        W_out = W * self.upsample_factor
-        logits = F.interpolate(logits, size=(H_out, W_out), mode='bilinear', align_corners=False)
+        logits = F.interpolate(logits, scale_factor=self.upsample_factor, mode='bilinear', align_corners=False)
 
         return logits
 
@@ -151,8 +131,8 @@ class MAESegmenter(nn.Module):
                 param.requires_grad = False
             print("Encoder frozen")
 
-        # Prototypical segmentation head
-        self.seg_head = PrototypicalSegHead(feat_dim=384, upsample_factor=8)
+        # Prototypical segmentation head with learnable projection
+        self.seg_head = PrototypicalSegHead(feat_dim=384, proj_dim=128, upsample_factor=8)
 
     def extract_features(self, x):
         """
