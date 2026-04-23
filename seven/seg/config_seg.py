@@ -34,15 +34,21 @@ PATCH_SIZE = 8
 EMBED_DIM = 384
 DEPTH = 12
 NUM_HEADS = 6
-FREEZE_ENCODER = True        # 先冻结encoder，只训练decoder
+FREEZE_ENCODER = True        # 原型分割始终冻结encoder
+
+# =========================
+# 原型分割
+# =========================
+K_SHOT = 5                   # support set 样本数
+EVAL_THRESHOLD = 0.5         # 评估时的二值化阈值
 
 # =========================
 # 训练
 # =========================
-EPOCHS = 300
+EPOCHS = 200
 BATCH_SIZE = 4
-BASE_LR = 1e-3               # decoder lr，encoder冻结时可以更大
-ENCODER_LR_SCALE = 0.0       # 冻结时无效
+BASE_LR = 1e-2               # 只训练temperature参数
+ENCODER_LR_SCALE = 0.0
 WEIGHT_DECAY = 0.05
 WARMUP_EPOCHS = 5
 USE_AMP = True

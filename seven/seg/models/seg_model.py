@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import sys
 import importlib.util
 from pathlib import Path
@@ -12,36 +13,113 @@ _spec.loader.exec_module(_mae_module)
 HybridMAEViT = _mae_module.HybridMAEViT
 
 
-class UpBlock(nn.Module):
-    """Upsample block: bilinear 2x + double Conv + BN + GELU"""
-    def __init__(self, in_channels, out_channels, dropout=0.1):
-        super().__init__()
-        self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False)
-        self.conv = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(out_channels),
-            nn.GELU(),
-            nn.Dropout2d(dropout),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(out_channels),
-            nn.GELU(),
-        )
+class PrototypicalSegHead(nn.Module):
+    """
+    Prototypical segmentation head for few-shot learning.
 
-    def forward(self, x):
-        x = self.up(x)
-        x = self.conv(x)
-        return x
+    Computes foreground/background prototypes from support set,
+    then segments query images via cosine similarity.
+    """
+    def __init__(self, feat_dim=384, upsample_factor=8):
+        super().__init__()
+        self.feat_dim = feat_dim
+        self.upsample_factor = upsample_factor
+
+        # Optional: learnable temperature for similarity scaling
+        self.temperature = nn.Parameter(torch.tensor(10.0))
+
+    def extract_prototypes(self, support_feats, support_masks):
+        """
+        Extract foreground and background prototypes from support set.
+
+        Args:
+            support_feats: [K, C, H, W] support features
+            support_masks: [K, 1, H_mask, W_mask] support masks (0/1)
+
+        Returns:
+            fg_proto: [C] foreground prototype
+            bg_proto: [C] background prototype
+        """
+        K, C, H, W = support_feats.shape
+
+        # Downsample masks to match feature resolution
+        masks_down = F.interpolate(
+            support_masks.float(),
+            size=(H, W),
+            mode='nearest'
+        )  # [K, 1, H, W]
+
+        # Flatten spatial dimensions
+        feats_flat = support_feats.view(K, C, -1)  # [K, C, H*W]
+        masks_flat = masks_down.view(K, 1, -1)     # [K, 1, H*W]
+
+        # Compute foreground prototype (masked average pooling)
+        fg_mask = masks_flat > 0.5  # [K, 1, H*W]
+        fg_count = fg_mask.sum(dim=(0, 2), keepdim=True).clamp(min=1)  # [1, 1, 1]
+        fg_sum = (feats_flat * fg_mask.float()).sum(dim=(0, 2))  # [C]
+        fg_proto = fg_sum / fg_count.squeeze()  # [C]
+
+        # Compute background prototype
+        bg_mask = ~fg_mask
+        bg_count = bg_mask.sum(dim=(0, 2), keepdim=True).clamp(min=1)
+        bg_sum = (feats_flat * bg_mask.float()).sum(dim=(0, 2))
+        bg_proto = bg_sum / bg_count.squeeze()
+
+        return fg_proto, bg_proto
+
+    def forward(self, query_feats, support_feats, support_masks):
+        """
+        Segment query images using prototypes from support set.
+
+        Args:
+            query_feats: [B, C, H, W] query features
+            support_feats: [K, C, H, W] support features
+            support_masks: [K, 1, H_mask, W_mask] support masks
+
+        Returns:
+            logits: [B, 1, H_out, W_out] segmentation logits
+        """
+        B, C, H, W = query_feats.shape
+
+        # Extract prototypes
+        fg_proto, bg_proto = self.extract_prototypes(support_feats, support_masks)
+
+        # Normalize features and prototypes for cosine similarity
+        query_norm = F.normalize(query_feats, dim=1)  # [B, C, H, W]
+        fg_proto_norm = F.normalize(fg_proto.unsqueeze(0), dim=1)  # [1, C]
+        bg_proto_norm = F.normalize(bg_proto.unsqueeze(0), dim=1)
+
+        # Compute cosine similarity
+        # query_norm: [B, C, H, W] -> [B, C, H*W]
+        # proto_norm: [1, C] -> [C, 1]
+        query_flat = query_norm.view(B, C, -1)  # [B, C, H*W]
+
+        fg_sim = torch.matmul(fg_proto_norm, query_flat)  # [1, H*W]
+        bg_sim = torch.matmul(bg_proto_norm, query_flat)
+
+        fg_sim = fg_sim.view(B, 1, H, W)  # [B, 1, H, W]
+        bg_sim = bg_sim.view(B, 1, H, W)
+
+        # Compute logits: fg_sim - bg_sim, scaled by temperature
+        logits = (fg_sim - bg_sim) * self.temperature
+
+        # Upsample to original image size
+        H_out = H * self.upsample_factor
+        W_out = W * self.upsample_factor
+        logits = F.interpolate(logits, size=(H_out, W_out), mode='bilinear', align_corners=False)
+
+        return logits
 
 
 class MAESegmenter(nn.Module):
     """
-    Segmentation model using pretrained MAE encoder + UNet-style decoder.
+    Prototypical segmentation model using pretrained MAE encoder.
 
     Architecture:
-        - Encoder: HybridMAEViT (patch=8, produces 32x32 token grid at 384 dim)
-        - Decoder: 4-stage upsampling (32→64→128→256) with channel reduction
+        - Encoder: HybridMAEViT (frozen, produces 32x32 token grid at 384 dim)
+        - Head: PrototypicalSegHead (computes prototypes from support set)
     """
-    def __init__(self, mae_checkpoint_path, freeze_encoder=False):
+    def __init__(self, mae_checkpoint_path, freeze_encoder=True):
         super().__init__()
 
         # Build MAE encoder (must use patch=8 to match checkpoint)
@@ -67,33 +145,29 @@ class MAESegmenter(nn.Module):
         self.encoder.load_state_dict(ckpt["model"], strict=True)
         print("MAE encoder loaded successfully")
 
-        # Freeze encoder if requested
+        # Freeze encoder (recommended for few-shot learning)
         if freeze_encoder:
             for param in self.encoder.parameters():
                 param.requires_grad = False
             print("Encoder frozen")
 
-        # Segmentation decoder: 32→64→128→256, with deeper double-conv blocks
-        self.decoder = nn.Sequential(
-            UpBlock(384, 256),   # 32 → 64
-            UpBlock(256, 128),   # 64 → 128
-            UpBlock(128, 64),    # 128 → 256
-            nn.Conv2d(64, 1, kernel_size=1)
-        )
+        # Prototypical segmentation head
+        self.seg_head = PrototypicalSegHead(feat_dim=384, upsample_factor=8)
 
-    def forward(self, x):
+    def extract_features(self, x):
         """
+        Extract features from encoder.
+
         Args:
             x: [B, 1, 256, 256] input images
 
         Returns:
-            [B, 1, 256, 256] segmentation logits (before sigmoid)
+            [B, 384, 32, 32] spatial features
         """
         B = x.shape[0]
-        model_training = self.encoder.training
 
         # Bypass random_masking to preserve spatial token order
-        with torch.no_grad() if not model_training else torch.enable_grad():
+        with torch.no_grad():
             x = self.encoder.patch_embed(x)
             x = x + self.encoder.pos_embed[:, 1:, :]
             cls_token = self.encoder.cls_token + self.encoder.pos_embed[:, :1, :]
@@ -109,9 +183,27 @@ class MAESegmenter(nn.Module):
 
         # Reshape to 2D grid: 1024 = 32 × 32 (from patch_size=8 on 256px image)
         h = w = 32
-        tokens = tokens.transpose(1, 2).reshape(B, 384, h, w)  # [B, 384, 32, 32]
+        features = tokens.transpose(1, 2).reshape(B, 384, h, w)  # [B, 384, 32, 32]
 
-        # Decode to segmentation map
-        logits = self.decoder(tokens)  # [B, 1, 256, 256]
+        return features
+
+    def forward(self, query_imgs, support_imgs, support_masks):
+        """
+        Forward pass for prototypical segmentation.
+
+        Args:
+            query_imgs: [B, 1, 256, 256] query images to segment
+            support_imgs: [K, 1, 256, 256] support images
+            support_masks: [K, 1, 256, 256] support masks (0/1)
+
+        Returns:
+            [B, 1, 256, 256] segmentation logits (before sigmoid)
+        """
+        # Extract features
+        query_feats = self.extract_features(query_imgs)      # [B, 384, 32, 32]
+        support_feats = self.extract_features(support_imgs)  # [K, 384, 32, 32]
+
+        # Compute prototypes and segment
+        logits = self.seg_head(query_feats, support_feats, support_masks)
 
         return logits
