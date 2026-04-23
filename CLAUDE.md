@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Session Bootstrap
+
+Read `.claude/PROJECT_INIT.md` first for the zero-context handoff. It records the current runnable state of the repository, including code-document mismatches that are important for safe continuation.
+If `CLAUDE.md`, other docs, and the code disagree, trust `.claude/PROJECT_INIT.md` and the current code.
+
 ## Project Overview
 
 This is an IVOCT (Intravascular Optical Coherence Tomography) medical image analysis project using a Hybrid Masked Autoencoder (MAE) with Vision Transformer for self-supervised pretraining. The goal is to learn robust representations from unlabeled IVOCT images through reconstruction.

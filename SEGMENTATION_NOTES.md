@@ -144,3 +144,43 @@ with torch.no_grad():
 | 最大占比 | 5.0% |
 | Token grid 尺寸 | 32×32（patch_size=8） |
 | Encoder 输出维度 | 384 |
+
+---
+
+## 2026-04-23 服务器训练记录
+
+本次在服务器上完成了一次完整的 LOPO-CV 分割训练。
+
+### 训练命令
+
+```bash
+cd seven/seg
+python train_seg.py --split lopo
+```
+
+### 最终结果
+
+- Mean Dice：**0.5145 ± 0.1426**
+- Fold 1（val=`P001`）：**0.5505**
+- Fold 2（val=`P002`）：**0.2722**
+- Fold 3（val=`P003`）：**0.6129**
+- Fold 4（val=`P004`）：**0.6224**
+
+### 结果位置
+
+以下均为仓库相对路径，且文件当前存在于服务器上：
+
+- `seven/seg/logs/results_lopo_20260423_222429.json`
+- `seven/seg/logs/results_lopo_baseline.json`
+- `seven/seg/checkpoints/seg_fold0_best.pth`
+- `seven/seg/checkpoints/seg_fold1_best.pth`
+- `seven/seg/checkpoints/seg_fold2_best.pth`
+- `seven/seg/checkpoints/seg_fold3_best.pth`
+- `seven/checkpoints_v2/mae_v2_best.pth`
+- `seven/checkpoints_v2/mae_v2_encoder_only.pth`
+
+### 当前判断
+
+- 这套 `MAE encoder + Conv decoder` 方案已经证明有效
+- 当前 baseline 可以作为后续调参对照
+- 最大问题仍然是患者间泛化波动，`P002` 折最弱，后续优先分析这一折
