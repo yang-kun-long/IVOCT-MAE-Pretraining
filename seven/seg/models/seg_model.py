@@ -13,14 +13,18 @@ HybridMAEViT = _mae_module.HybridMAEViT
 
 
 class UpBlock(nn.Module):
-    """Upsample block: bilinear 2x + Conv + BN + GELU"""
-    def __init__(self, in_channels, out_channels):
+    """Upsample block: bilinear 2x + double Conv + BN + GELU"""
+    def __init__(self, in_channels, out_channels, dropout=0.1):
         super().__init__()
         self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False)
         self.conv = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(out_channels),
-            nn.GELU()
+            nn.GELU(),
+            nn.Dropout2d(dropout),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.GELU(),
         )
 
     def forward(self, x):
@@ -69,14 +73,12 @@ class MAESegmenter(nn.Module):
                 param.requires_grad = False
             print("Encoder frozen")
 
-        # Segmentation decoder
-        # Input: [B, 384, 32, 32] from encoder tokens
-        # Output: [B, 1, 256, 256] segmentation logits
+        # Segmentation decoder: 32→64→128→256, with deeper double-conv blocks
         self.decoder = nn.Sequential(
-            UpBlock(384, 192),   # 32 → 64
-            UpBlock(192, 96),    # 64 → 128
-            UpBlock(96, 48),     # 128 → 256
-            nn.Conv2d(48, 1, kernel_size=1)  # Final 1x1 conv to single channel
+            UpBlock(384, 256),   # 32 → 64
+            UpBlock(256, 128),   # 64 → 128
+            UpBlock(128, 64),    # 128 → 256
+            nn.Conv2d(64, 1, kernel_size=1)
         )
 
     def forward(self, x):

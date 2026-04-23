@@ -39,10 +39,10 @@ FREEZE_ENCODER = False       # 全量 fine-tune
 # =========================
 # 训练
 # =========================
-EPOCHS = 100
-BATCH_SIZE = 8
-BASE_LR = 1e-4               # decoder lr
-ENCODER_LR_SCALE = 0.1       # encoder lr = BASE_LR * 0.1
+EPOCHS = 200
+BATCH_SIZE = 4
+BASE_LR = 3e-4               # decoder lr
+ENCODER_LR_SCALE = 0.05      # encoder lr = BASE_LR * 0.05
 WEIGHT_DECAY = 0.05
 WARMUP_EPOCHS = 5
 USE_AMP = True
