@@ -39,14 +39,14 @@ FREEZE_ENCODER = True        # 原型分割始终冻结encoder
 # =========================
 # 原型分割
 # =========================
-K_SHOT = 5                   # support set 样本数
+K_SHOT = 10                  # support set 样本数，显存充足可以更多
 EVAL_THRESHOLD = 0.5         # 评估时的二值化阈值
 
 # =========================
 # 训练
 # =========================
 EPOCHS = 200
-BATCH_SIZE = 4
+BATCH_SIZE = 16
 BASE_LR = 1e-2               # 只训练temperature参数
 ENCODER_LR_SCALE = 0.0
 WEIGHT_DECAY = 0.05
