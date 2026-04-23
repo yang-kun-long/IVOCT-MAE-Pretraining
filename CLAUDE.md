@@ -19,9 +19,9 @@ This is an IVOCT (Intravascular Optical Coherence Tomography) medical image anal
 **Training Pipeline**:
 1. Images preprocessed with center ROI cropping (removes outer artifacts/text)
 2. Foreground masks computed to identify tissue vs background
-3. Patches masked with foreground bias (70% mask ratio, 60% bias toward tissue)
+3. Patches masked with foreground bias (50% mask ratio, 60% bias toward tissue)
 4. Encoder processes visible patches → Decoder reconstructs masked regions
-5. Multi-component loss: MSE + SSIM + Gradient (weighted 1.0 + 0.20 + 0.10)
+5. Multi-component loss: MSE + SSIM + Gradient (weighted 1.0 + 0.7 + 0.2)
 
 **Data Flow**:
 ```
@@ -40,7 +40,7 @@ DATA/P00X/Data/*.jpg → IVOCTPretrainDatasetV2 → DataLoader
 
 - `DATA/`: Patient datasets (P001-P004)
   - `Data/`: Raw IVOCT images (897 total)
-  - `label/`: Polygon annotations in LabelMe JSON format (666 files)
+  - `label/`: Polygon annotations in LabelMe JSON format (43 files, all single-class "CA" / calcification)
   - `mask/`: Binary segmentation masks
 - `seven/`: Main codebase
   - `config_v2.py`: Central configuration (paths, hyperparameters)
@@ -61,7 +61,7 @@ DATA/P00X/Data/*.jpg → IVOCTPretrainDatasetV2 → DataLoader
 cd seven
 python train_mae_v2.py
 ```
-Trains from scratch for 300 epochs (v3 改进版) with:
+Trains from scratch for 400 epochs (v4 改进版) with:
 - Batch size 32, 4 workers
 - AdamW optimizer (lr=1.5e-4, warmup=10 epochs)
 - Mixed precision (AMP) enabled
@@ -94,12 +94,12 @@ All hyperparameters centralized in `seven/config_v2.py`:
 - Tune loss weights: `LAMBDA_MSE`, `LAMBDA_SSIM`, `LAMBDA_GRAD`
 - Change model size via `EMBED_DIM`, `DEPTH`, `NUM_HEADS`, `PATCH_SIZE`
 
-**v3 Improvements** (see IMPROVEMENTS.md for details):
+**v4 Improvements** (cumulative vs. original; see IMPROVEMENTS.md for details):
 - Patch size: 8 → 16 (reduces checkerboard artifacts)
 - Decoder: 4 layers → 8 layers (better reconstruction)
-- Mask ratio: 70% → 60% (easier training)
-- Loss weights: SSIM 0.2→0.5, Grad 0.1→0.2 (better structure/edges)
-- Epochs: 200 → 300 (more thorough training)
+- Mask ratio: 70% → 50% (v3 was 60%; further lowered for easier training)
+- Loss weights: SSIM 0.2 → 0.7 (v3 was 0.5), Grad 0.1 → 0.2 (better structure/edges)
+- Epochs: 200 → 400 (v3 was 300; more thorough training)
 
 ## Key Design Decisions
 
@@ -113,18 +113,18 @@ All hyperparameters centralized in `seven/config_v2.py`:
 
 ## Data Format
 
-**Images**: Grayscale IVOCT cross-sections (`.jpg`), typically showing circular vessel lumen with surrounding tissue layers.
+**Images**: IVOCT cross-sections (`.jpg`), 1024×1024, stored as 3-channel color JPEGs in Abbott OCT's orange false-color palette. Dataset loader converts to single-channel grayscale via `.convert("L")` before training. Each frame contains an Abbott logo and "1 mm" scale bar near the bottom-right corner (largely survives the 86% ROI crop), plus a central catheter artifact (concentric circles).
 
 **Labels**: LabelMe JSON format with polygon annotations. Each shape has:
 - `label`: Tissue type (e.g., "CA" for calcification)
 - `points`: List of [x, y] coordinates defining polygon
 - `shape_type`: "polygon"
 
-**Masks**: Binary PNG masks corresponding to labeled regions.
+**Masks**: Binary PNG masks (0/255) corresponding to labeled regions, co-registered to the 1024×1024 original. Filename convention: `IMG-0001-XXXXX_mask.png` (note the `_mask` suffix, differs from the source `.jpg` basename).
 
 ## Notes
 
 - Model expects single-channel grayscale input (IN_CHANS=1)
-- Patch size fixed at 8 (changing requires modifying ConvStem architecture)
+- Patch size fixed at 16 (changing requires modifying ConvStem architecture)
 - Training uses CUDA by default; falls back to CPU if unavailable
 - Best model selected by lowest total loss (MSE + SSIM + Gradient)

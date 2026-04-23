@@ -1,39 +1,17 @@
 # 数据集
-DATA/*/Data/*.jpg
-DATA/*/Data/*.jpeg
-DATA/*/Data/*.png
-DATA/*/Data/*.bmp
-DATA/*/Data/*.tif
-DATA/*/Data/*.tiff
-DATA/*/label/*.json
-DATA/*/mask/*.png
+DATA/
 
-# 模型权重和checkpoint
-seven/checkpoints_v2/*.pth
-seven/checkpoints_v3/*.pth
-seven/checkpoints_v4/*.pth
+# 训练结果（checkpoints, logs, visualizations）
+results/
 
-# 训练日志
-seven/logs_v2/*.log
-seven/logs_v3/*.log
-seven/logs_v4/*.log
+# 分割训练输出
+seven/seg/seg_checkpoints/
+seven/seg/seg_logs/
+seven/seg/seg_vis/
 
-# 重建可视化
-seven/recon_vis_v2/
-seven/recon_vis_v3/
-seven/recon_vis_v4/
-
-# 结果打包
+# 项目备份
 *.tar.gz
 *.zip
-mae_v4_results/
-mae_v3_results/
-
-# 结果文件
-result/*.pth
-result/*.png
-result/recon_vis_v2/
-result/recon_vis_v3/
 
 # Python
 __pycache__/
