@@ -20,16 +20,17 @@ class PrototypicalSegHead(nn.Module):
     Projects encoder features into a discriminative space,
     then segments via prototype matching.
     """
-    def __init__(self, feat_dim=384, proj_dim=128, upsample_factor=8):
+    def __init__(self, feat_dim=384, proj_dim=64, upsample_factor=8):
         super().__init__()
         self.upsample_factor = upsample_factor
 
         # Learnable projection: maps encoder features to discriminative space
         self.proj = nn.Sequential(
-            nn.Conv2d(feat_dim, 256, kernel_size=1),
-            nn.BatchNorm2d(256),
+            nn.Conv2d(feat_dim, 128, kernel_size=1),
+            nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
-            nn.Conv2d(256, proj_dim, kernel_size=1),
+            nn.Dropout2d(0.3),
+            nn.Conv2d(128, proj_dim, kernel_size=1),
         )
 
         self.temperature = nn.Parameter(torch.tensor(10.0))

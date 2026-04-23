@@ -73,8 +73,8 @@ def get_splits(split_mode, holdout_patient):
         raise ValueError(f"Unknown split_mode: {split_mode}")
 
 
-def train_one_epoch(model, loader, train_dataset, optimizer, scaler, device, epoch):
-    """Train for one epoch with episodic support set sampling"""
+def train_one_epoch(model, loader, support_imgs, support_masks, optimizer, scaler, device, epoch):
+    """Train for one epoch with fixed support set"""
     model.train()
     total_loss = 0
     num_batches = 0
@@ -82,14 +82,6 @@ def train_one_epoch(model, loader, train_dataset, optimizer, scaler, device, epo
     for batch_idx, batch in enumerate(loader):
         query_imgs = batch["image"].to(device)
         query_masks = batch["mask"].to(device)
-
-        # Sample support set for this episode
-        support_imgs, support_masks = sample_support_set(
-            train_dataset,
-            k_shot=config.K_SHOT
-        )
-        support_imgs = support_imgs.to(device)
-        support_masks = support_masks.to(device)
 
         optimizer.zero_grad()
 
@@ -215,11 +207,18 @@ def train_fold(fold_idx, train_patients, val_patients, device):
     fold_vis_dir = config.SEG_VIS_DIR / f"fold_{fold_idx}"
     fold_vis_dir.mkdir(exist_ok=True)
 
+    # Sample fixed support set once before training
+    print(f"Sampling fixed support set (K={config.K_SHOT})...")
+    support_imgs, support_masks = sample_support_set(train_dataset, k_shot=config.K_SHOT)
+    support_imgs = support_imgs.to(device)
+    support_masks = support_masks.to(device)
+    print(f"Support set: {support_imgs.shape}, foreground ratio: {support_masks.float().mean():.4f}")
+
     for epoch in range(config.EPOCHS):
         print(f"\nEpoch {epoch + 1}/{config.EPOCHS}")
         print(f"LR: {optimizer.param_groups[0]['lr']:.2e}")
 
-        train_loss = train_one_epoch(model, train_loader, train_dataset, optimizer, scaler, device, epoch)
+        train_loss = train_one_epoch(model, train_loader, support_imgs, support_masks, optimizer, scaler, device, epoch)
         val_metrics = evaluate(model, val_loader, val_dataset, device, fold_vis_dir, epoch)
 
         scheduler.step()
