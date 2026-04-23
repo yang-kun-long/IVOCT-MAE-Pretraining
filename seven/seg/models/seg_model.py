@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import sys
 import importlib.util
 from pathlib import Path
@@ -13,94 +12,36 @@ _spec.loader.exec_module(_mae_module)
 HybridMAEViT = _mae_module.HybridMAEViT
 
 
-class PrototypicalSegHead(nn.Module):
-    """
-    Prototypical segmentation head with learnable projection.
-
-    Projects encoder features into a discriminative space,
-    then segments via prototype matching.
-    """
-    def __init__(self, feat_dim=384, proj_dim=64, upsample_factor=8):
+class UpBlock(nn.Module):
+    """Upsample block: bilinear 2x + double Conv + BN + GELU"""
+    def __init__(self, in_channels, out_channels, dropout=0.1):
         super().__init__()
-        self.upsample_factor = upsample_factor
-
-        # Learnable projection: maps encoder features to discriminative space
-        self.proj = nn.Sequential(
-            nn.Conv2d(feat_dim, 128, kernel_size=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            nn.Dropout2d(0.3),
-            nn.Conv2d(128, proj_dim, kernel_size=1),
+        self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False)
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.GELU(),
+            nn.Dropout2d(dropout),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.GELU(),
         )
 
-        self.temperature = nn.Parameter(torch.tensor(10.0))
-
-    def extract_prototypes(self, support_feats, support_masks):
-        """
-        Args:
-            support_feats: [K, proj_dim, H, W] projected support features
-            support_masks: [K, 1, H_mask, W_mask] support masks
-        Returns:
-            fg_proto: [proj_dim]
-            bg_proto: [proj_dim]
-        """
-        K, C, H, W = support_feats.shape
-
-        masks_down = F.interpolate(support_masks.float(), size=(H, W), mode='nearest')
-        feats_flat = support_feats.view(K, C, -1)   # [K, C, H*W]
-        masks_flat = masks_down.view(K, 1, -1)       # [K, 1, H*W]
-
-        fg_mask = masks_flat > 0.5
-        fg_proto = (feats_flat * fg_mask.float()).sum(dim=(0, 2)) / fg_mask.float().sum(dim=(0, 2)).clamp(min=1)
-
-        bg_mask = ~fg_mask
-        bg_proto = (feats_flat * bg_mask.float()).sum(dim=(0, 2)) / bg_mask.float().sum(dim=(0, 2)).clamp(min=1)
-
-        return fg_proto, bg_proto
-
-    def forward(self, query_feats, support_feats, support_masks):
-        """
-        Args:
-            query_feats:   [B, feat_dim, H, W]
-            support_feats: [K, feat_dim, H, W]
-            support_masks: [K, 1, H_mask, W_mask]
-        Returns:
-            logits: [B, 1, H*upsample, W*upsample]
-        """
-        # Project to discriminative space
-        query_proj = self.proj(query_feats)      # [B, proj_dim, H, W]
-        support_proj = self.proj(support_feats)  # [K, proj_dim, H, W]
-
-        B, C, H, W = query_proj.shape
-
-        # Extract prototypes from projected support features
-        fg_proto, bg_proto = self.extract_prototypes(support_proj, support_masks)
-
-        # Cosine similarity
-        query_norm = F.normalize(query_proj, dim=1)           # [B, C, H, W]
-        fg_norm = F.normalize(fg_proto, dim=0).view(1, C, 1, 1)
-        bg_norm = F.normalize(bg_proto, dim=0).view(1, C, 1, 1)
-
-        fg_sim = (query_norm * fg_norm).sum(dim=1, keepdim=True)  # [B, 1, H, W]
-        bg_sim = (query_norm * bg_norm).sum(dim=1, keepdim=True)
-
-        logits = (fg_sim - bg_sim) * self.temperature
-
-        # Upsample to original image size
-        logits = F.interpolate(logits, scale_factor=self.upsample_factor, mode='bilinear', align_corners=False)
-
-        return logits
+    def forward(self, x):
+        x = self.up(x)
+        x = self.conv(x)
+        return x
 
 
 class MAESegmenter(nn.Module):
     """
-    Prototypical segmentation model using pretrained MAE encoder.
+    Segmentation model using pretrained MAE encoder + UNet-style decoder.
 
     Architecture:
-        - Encoder: HybridMAEViT (frozen, produces 32x32 token grid at 384 dim)
-        - Head: PrototypicalSegHead (computes prototypes from support set)
+        - Encoder: HybridMAEViT (patch=8, produces 32x32 token grid at 384 dim)
+        - Decoder: 4-stage upsampling (32→64→128→256) with channel reduction
     """
-    def __init__(self, mae_checkpoint_path, freeze_encoder=True):
+    def __init__(self, mae_checkpoint_path, freeze_encoder=False):
         super().__init__()
 
         # Build MAE encoder (must use patch=8 to match checkpoint)
@@ -126,29 +67,33 @@ class MAESegmenter(nn.Module):
         self.encoder.load_state_dict(ckpt["model"], strict=True)
         print("MAE encoder loaded successfully")
 
-        # Freeze encoder (recommended for few-shot learning)
+        # Freeze encoder if requested
         if freeze_encoder:
             for param in self.encoder.parameters():
                 param.requires_grad = False
             print("Encoder frozen")
 
-        # Prototypical segmentation head with learnable projection
-        self.seg_head = PrototypicalSegHead(feat_dim=384, proj_dim=128, upsample_factor=8)
+        # Segmentation decoder: 32→64→128→256, with deeper double-conv blocks
+        self.decoder = nn.Sequential(
+            UpBlock(384, 256),   # 32 → 64
+            UpBlock(256, 128),   # 64 → 128
+            UpBlock(128, 64),    # 128 → 256
+            nn.Conv2d(64, 1, kernel_size=1)
+        )
 
-    def extract_features(self, x):
+    def forward(self, x):
         """
-        Extract features from encoder.
-
         Args:
             x: [B, 1, 256, 256] input images
 
         Returns:
-            [B, 384, 32, 32] spatial features
+            [B, 1, 256, 256] segmentation logits (before sigmoid)
         """
         B = x.shape[0]
+        model_training = self.encoder.training
 
         # Bypass random_masking to preserve spatial token order
-        with torch.no_grad():
+        with torch.no_grad() if not model_training else torch.enable_grad():
             x = self.encoder.patch_embed(x)
             x = x + self.encoder.pos_embed[:, 1:, :]
             cls_token = self.encoder.cls_token + self.encoder.pos_embed[:, :1, :]
@@ -164,27 +109,9 @@ class MAESegmenter(nn.Module):
 
         # Reshape to 2D grid: 1024 = 32 × 32 (from patch_size=8 on 256px image)
         h = w = 32
-        features = tokens.transpose(1, 2).reshape(B, 384, h, w)  # [B, 384, 32, 32]
+        tokens = tokens.transpose(1, 2).reshape(B, 384, h, w)  # [B, 384, 32, 32]
 
-        return features
-
-    def forward(self, query_imgs, support_imgs, support_masks):
-        """
-        Forward pass for prototypical segmentation.
-
-        Args:
-            query_imgs: [B, 1, 256, 256] query images to segment
-            support_imgs: [K, 1, 256, 256] support images
-            support_masks: [K, 1, 256, 256] support masks (0/1)
-
-        Returns:
-            [B, 1, 256, 256] segmentation logits (before sigmoid)
-        """
-        # Extract features
-        query_feats = self.extract_features(query_imgs)      # [B, 384, 32, 32]
-        support_feats = self.extract_features(support_imgs)  # [K, 384, 32, 32]
-
-        # Compute prototypes and segment
-        logits = self.seg_head(query_feats, support_feats, support_masks)
+        # Decode to segmentation map
+        logits = self.decoder(tokens)  # [B, 1, 256, 256]
 
         return logits

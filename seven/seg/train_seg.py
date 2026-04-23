@@ -4,7 +4,6 @@ import json
 import numpy as np
 from pathlib import Path
 from datetime import datetime
-import random
 
 import torch
 from torch.utils.data import DataLoader
@@ -19,34 +18,6 @@ import config_seg as config
 from datasets import IVOCTSegDataset
 from models import MAESegmenter
 from utils import seg_loss, compute_metrics, aggregate_metrics, save_seg_visualization
-
-
-def sample_support_set(dataset, k_shot=5):
-    """
-    Randomly sample k support examples from dataset.
-
-    Args:
-        dataset: IVOCTSegDataset
-        k_shot: number of support examples
-
-    Returns:
-        support_imgs: [K, 1, 256, 256]
-        support_masks: [K, 1, 256, 256]
-    """
-    indices = random.sample(range(len(dataset)), min(k_shot, len(dataset)))
-
-    support_imgs = []
-    support_masks = []
-
-    for idx in indices:
-        sample = dataset[idx]
-        support_imgs.append(sample['image'])
-        support_masks.append(sample['mask'])
-
-    support_imgs = torch.stack(support_imgs)
-    support_masks = torch.stack(support_masks)
-
-    return support_imgs, support_masks
 
 
 def get_splits(split_mode, holdout_patient):
@@ -73,22 +44,22 @@ def get_splits(split_mode, holdout_patient):
         raise ValueError(f"Unknown split_mode: {split_mode}")
 
 
-def train_one_epoch(model, loader, support_imgs, support_masks, optimizer, scaler, device, epoch):
-    """Train for one epoch with fixed support set"""
+def train_one_epoch(model, loader, optimizer, scaler, device, epoch):
+    """Train for one epoch"""
     model.train()
     total_loss = 0
     num_batches = 0
 
     for batch_idx, batch in enumerate(loader):
-        query_imgs = batch["image"].to(device)
-        query_masks = batch["mask"].to(device)
+        images = batch["image"].to(device)
+        masks = batch["mask"].to(device)
 
         optimizer.zero_grad()
 
         with autocast(enabled=config.USE_AMP):
-            logits = model(query_imgs, support_imgs, support_masks)
+            logits = model(images)
             loss = seg_loss(
-                logits, query_masks,
+                logits, masks,
                 lambda_dice=config.LAMBDA_DICE,
                 lambda_bce=config.LAMBDA_BCE
             )
@@ -111,18 +82,10 @@ def train_one_epoch(model, loader, support_imgs, support_masks, optimizer, scale
     return avg_loss
 
 
-def evaluate(model, loader, val_dataset, device, vis_dir=None, epoch=None):
-    """Evaluate on validation set with fixed support set"""
+def evaluate(model, loader, device, vis_dir=None, epoch=None):
+    """Evaluate on validation set"""
     model.eval()
     metrics_list = []
-
-    # Sample a fixed support set for the entire validation
-    support_imgs, support_masks = sample_support_set(
-        val_dataset,
-        k_shot=config.K_SHOT
-    )
-    support_imgs = support_imgs.to(device)
-    support_masks = support_masks.to(device)
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(loader):
@@ -130,7 +93,7 @@ def evaluate(model, loader, val_dataset, device, vis_dir=None, epoch=None):
             masks = batch["mask"].to(device)
 
             with autocast(enabled=config.USE_AMP):
-                logits = model(images, support_imgs, support_masks)
+                logits = model(images)
 
             metrics = compute_metrics(logits, masks)
             metrics_list.append(metrics)
@@ -184,11 +147,20 @@ def train_fold(fold_idx, train_patients, val_patients, device):
         freeze_encoder=config.FREEZE_ENCODER
     ).to(device)
 
-    # Optimizer: only seg_head params (temperature) are learnable
-    learnable_params = [p for p in model.parameters() if p.requires_grad]
-    print(f"Learnable params: {sum(p.numel() for p in learnable_params)}")
+    # Optimizer with differential learning rates
+    encoder_params = []
+    decoder_params = []
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            if 'encoder' in name:
+                encoder_params.append(param)
+            else:
+                decoder_params.append(param)
 
-    optimizer = AdamW(learnable_params, lr=config.BASE_LR, weight_decay=config.WEIGHT_DECAY)
+    optimizer = AdamW([
+        {'params': encoder_params, 'lr': config.BASE_LR * config.ENCODER_LR_SCALE},
+        {'params': decoder_params, 'lr': config.BASE_LR}
+    ], weight_decay=config.WEIGHT_DECAY)
 
     # Scheduler with warmup
     def lr_lambda(epoch):
@@ -207,19 +179,12 @@ def train_fold(fold_idx, train_patients, val_patients, device):
     fold_vis_dir = config.SEG_VIS_DIR / f"fold_{fold_idx}"
     fold_vis_dir.mkdir(exist_ok=True)
 
-    # Sample fixed support set once before training
-    print(f"Sampling fixed support set (K={config.K_SHOT})...")
-    support_imgs, support_masks = sample_support_set(train_dataset, k_shot=config.K_SHOT)
-    support_imgs = support_imgs.to(device)
-    support_masks = support_masks.to(device)
-    print(f"Support set: {support_imgs.shape}, foreground ratio: {support_masks.float().mean():.4f}")
-
     for epoch in range(config.EPOCHS):
         print(f"\nEpoch {epoch + 1}/{config.EPOCHS}")
-        print(f"LR: {optimizer.param_groups[0]['lr']:.2e}")
+        print(f"LR: encoder={optimizer.param_groups[0]['lr']:.2e}, decoder={optimizer.param_groups[1]['lr']:.2e}")
 
-        train_loss = train_one_epoch(model, train_loader, support_imgs, support_masks, optimizer, scaler, device, epoch)
-        val_metrics = evaluate(model, val_loader, val_dataset, device, fold_vis_dir, epoch)
+        train_loss = train_one_epoch(model, train_loader, optimizer, scaler, device, epoch)
+        val_metrics = evaluate(model, val_loader, device, fold_vis_dir, epoch)
 
         scheduler.step()
 
