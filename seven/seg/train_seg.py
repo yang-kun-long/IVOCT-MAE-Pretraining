@@ -98,6 +98,10 @@ def evaluate(model, loader, device, vis_dir=None, epoch=None):
             metrics = compute_metrics(logits, masks)
             metrics_list.append(metrics)
 
+            if batch_idx == 0:
+                probs = torch.sigmoid(logits)
+                print(f"  [diag] prob mean={probs.mean():.3f} max={probs.max():.3f} pred>0.3={( probs>0.3).float().mean():.3f}")
+
             # Save visualization for first batch
             if batch_idx == 0 and vis_dir is not None and epoch is not None:
                 vis_path = vis_dir / f"epoch_{epoch:03d}.png"

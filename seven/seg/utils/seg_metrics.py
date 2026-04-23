@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 
-def compute_metrics(pred_logit, target, threshold=0.5):
+def compute_metrics(pred_logit, target, threshold=0.3):
     """
     Compute per-image segmentation metrics.
 
