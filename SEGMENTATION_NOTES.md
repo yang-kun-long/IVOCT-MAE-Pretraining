@@ -184,3 +184,54 @@ python train_seg.py --split lopo
 - 这套 `MAE encoder + Conv decoder` 方案已经证明有效
 - 当前 baseline 可以作为后续调参对照
 - 最大问题仍然是患者间泛化波动，`P002` 折最弱，后续优先分析这一折
+
+---
+
+## 2026-04-24 会话中断记录
+
+### 已完成的额外实验
+
+服务器上又完成了两轮基于 baseline 的调参实验：
+
+- `seven/seg/logs/results_lopo_20260423_233510.json`
+  - `BN + early stopping`
+  - Mean Dice：**0.4786 ± 0.1291**
+- `seven/seg/logs/results_lopo_20260423_235957.json`
+  - `focal_tversky + BN + early stopping`
+  - Mean Dice：**0.4994 ± 0.1648**
+
+这两轮都没有超过最早的 baseline：
+
+- `seven/seg/logs/results_lopo_20260423_222429.json`
+  - Mean Dice：**0.5145 ± 0.1426**
+
+### 中断时的工作状态
+
+由于最早 baseline 的 `seg_fold*_best.pth` 已被后续实验覆盖，本次会话最后改为：
+
+1. 在服务器上创建独立 worktree：`/root/CN_seg_baseline`
+2. 将其固定到提交 `733df27`
+3. 通过软链接接入：
+   - `/root/CN_seg/DATA`
+   - `/root/CN_seg/seven/checkpoints_v2`
+4. 在该隔离目录中重跑最早 baseline，准备之后做真正可比的 threshold sweep
+
+### 进行中的服务器任务
+
+中断时，以下任务仍在运行：
+
+- baseline 重跑目录：`/root/CN_seg_baseline/seven/seg`
+- 日志：`/root/CN_seg_baseline/seven/seg/baseline_repro.log`
+
+查看命令：
+
+```bash
+cd /root/CN_seg_baseline/seven/seg
+tail -n 100 -f baseline_repro.log
+```
+
+### 下次续接
+
+- 先确认 `baseline_repro.log` 是否已经跑完
+- 如果已完成，立刻对这轮新生成的 baseline checkpoints 做 threshold sweep
+- 再决定是否转向阈值优化或轻量后处理，而不是继续盲目改训练配置
