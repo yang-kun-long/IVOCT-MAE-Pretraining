@@ -11,6 +11,8 @@ class SegStabilityPlanTests(unittest.TestCase):
         self.assertIn("EVAL_THRESHOLD", content)
         self.assertIn("EARLY_STOPPING_PATIENCE", content)
         self.assertIn("MIN_EPOCHS", content)
+        self.assertIn("BASE_LR = 1e-3", content)
+        self.assertIn("EVAL_THRESHOLD = 0.3", content)
 
     def test_train_loop_uses_threshold_and_early_stopping(self):
         content = (ROOT / "seven" / "seg" / "train_seg.py").read_text(encoding="utf-8")
@@ -20,10 +22,10 @@ class SegStabilityPlanTests(unittest.TestCase):
         self.assertIn("patience_counter", content)
         self.assertIn("Early stopping", content)
 
-    def test_decoder_uses_groupnorm_not_batchnorm(self):
+    def test_decoder_keeps_batchnorm_for_checkpoint_compatibility(self):
         content = (ROOT / "seven" / "seg" / "models" / "seg_model.py").read_text(encoding="utf-8")
-        self.assertIn("GroupNorm", content)
-        self.assertNotIn("BatchNorm2d", content)
+        self.assertIn("BatchNorm2d", content)
+        self.assertNotIn("GroupNorm", content)
 
     def test_threshold_sweep_script_exists(self):
         script = ROOT / "scripts" / "sweep_seg_thresholds.py"

@@ -13,17 +13,17 @@ HybridMAEViT = _mae_module.HybridMAEViT
 
 
 class UpBlock(nn.Module):
-    """Upsample block: bilinear 2x + double Conv + GN + GELU"""
+    """Upsample block: bilinear 2x + double Conv + BN + GELU"""
     def __init__(self, in_channels, out_channels, dropout=0.1):
         super().__init__()
         self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False)
         self.conv = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.GroupNorm(8, out_channels),
+            nn.BatchNorm2d(out_channels),
             nn.GELU(),
             nn.Dropout2d(dropout),
             nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.GroupNorm(8, out_channels),
+            nn.BatchNorm2d(out_channels),
             nn.GELU(),
         )
 
