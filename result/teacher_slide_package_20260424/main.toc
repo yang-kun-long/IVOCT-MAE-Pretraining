@@ -1,0 +1,5 @@
+\beamer@sectionintoc {1}{阶段目标}{3}{0}{1}
+\beamer@sectionintoc {2}{方法设置}{6}{0}{2}
+\beamer@sectionintoc {3}{主线结果}{9}{0}{3}
+\beamer@sectionintoc {4}{补充分析}{13}{0}{4}
+\beamer@sectionintoc {5}{阶段决策}{16}{0}{5}

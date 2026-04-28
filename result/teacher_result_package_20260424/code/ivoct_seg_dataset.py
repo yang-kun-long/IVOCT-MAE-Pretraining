@@ -113,25 +113,6 @@ class IVOCTSegDataset(Dataset):
             img = TF.adjust_brightness(img, brightness_factor)
             img = torch.clamp(img, 0, 1)
 
-            # 对比度 jitter
-            contrast_factor = random.uniform(0.85, 1.15)
-            img = TF.adjust_contrast(img, contrast_factor)
-            img = torch.clamp(img, 0, 1)
-
-            # 高斯噪声（模拟 IVOCT 散斑噪声）
-            noise = torch.randn_like(img) * 0.005
-            img = img + noise
-            img = torch.clamp(img, 0, 1)
-
-            # 随机平移 + 缩放（模拟导管偏移、血管尺寸变化）
-            dx = random.uniform(-0.03, 0.03)
-            dy = random.uniform(-0.03, 0.03)
-            scale = random.uniform(0.97, 1.03)
-            img = TF.affine(img, angle=0, translate=[dx, dy], scale=scale, shear=0,
-                            interpolation=TF.InterpolationMode.BILINEAR)
-            mask = TF.affine(mask, angle=0, translate=[dx, dy], scale=scale, shear=0,
-                             interpolation=TF.InterpolationMode.NEAREST)
-
         return {
             "image": img,
             "mask": mask,

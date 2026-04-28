@@ -1,0 +1,257 @@
+{
+  "thresholds": [
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7
+  ],
+  "folds": {
+    "fold_0": {
+      "checkpoint": "seven/seg/checkpoints/seg_fold0_best.pth",
+      "val_patients": [
+        "P001"
+      ],
+      "best_epoch": 177,
+      "thresholds": {
+        "0.3": {
+          "dice_mean": 0.5292214306507127,
+          "dice_std": 0.1516181281550163,
+          "iou_mean": 0.37495746873718144,
+          "iou_std": 0.14854934934788888,
+          "sensitivity_mean": 0.4765795185259657,
+          "sensitivity_std": 0.18989368066352083,
+          "specificity_mean": 0.9972110068837786,
+          "specificity_std": 0.0029914765852918006
+        },
+        "0.4": {
+          "dice_mean": 0.5160889014599616,
+          "dice_std": 0.15265042981107638,
+          "iou_mean": 0.3626096268838165,
+          "iou_std": 0.14572477219790692,
+          "sensitivity_mean": 0.4562872423819285,
+          "sensitivity_std": 0.18733075593016107,
+          "specificity_mean": 0.9973727668988837,
+          "specificity_std": 0.002887455273945882
+        },
+        "0.5": {
+          "dice_mean": 0.5029573665505749,
+          "dice_std": 0.15828970157785857,
+          "iou_mean": 0.35147459497559225,
+          "iou_std": 0.14838457034391841,
+          "sensitivity_mean": 0.43851724293319416,
+          "sensitivity_std": 0.1900172876648625,
+          "specificity_mean": 0.9975130015693525,
+          "specificity_std": 0.002802510666181043
+        },
+        "0.6": {
+          "dice_mean": 0.49347217298407753,
+          "dice_std": 0.16199210723979135,
+          "iou_mean": 0.34344106162471394,
+          "iou_std": 0.1494454344154361,
+          "sensitivity_mean": 0.42426753471364276,
+          "sensitivity_std": 0.19029418600894446,
+          "specificity_mean": 0.9976594208521126,
+          "specificity_std": 0.0027233253830839118
+        },
+        "0.7": {
+          "dice_mean": 0.47654367426004896,
+          "dice_std": 0.1670021511758597,
+          "iou_mean": 0.3290352371286979,
+          "iou_std": 0.14978421032929434,
+          "sensitivity_mean": 0.4028394570924091,
+          "sensitivity_std": 0.18884500342221008,
+          "specificity_mean": 0.9977996510996257,
+          "specificity_std": 0.002662750774260385
+        }
+      },
+      "best_threshold": 0.3,
+      "best_dice_mean": 0.5292214306507127
+    },
+    "fold_1": {
+      "checkpoint": "seven/seg/checkpoints/seg_fold1_best.pth",
+      "val_patients": [
+        "P002"
+      ],
+      "best_epoch": 168,
+      "thresholds": {
+        "0.3": {
+          "dice_mean": 0.2863593318136837,
+          "dice_std": 0.1841128682375571,
+          "iou_mean": 0.1806471175053706,
+          "iou_std": 0.12655485413437628,
+          "sensitivity_mean": 0.5676392463053855,
+          "sensitivity_std": 0.3049032383428233,
+          "specificity_mean": 0.9800544572775448,
+          "specificity_std": 0.010711525348965346
+        },
+        "0.4": {
+          "dice_mean": 0.2863774611041035,
+          "dice_std": 0.18211039663875173,
+          "iou_mean": 0.18028936781029475,
+          "iou_std": 0.1244622180067675,
+          "sensitivity_mean": 0.551081850950952,
+          "sensitivity_std": 0.3079921360674122,
+          "specificity_mean": 0.9810739512547887,
+          "specificity_std": 0.010522750757143038
+        },
+        "0.5": {
+          "dice_mean": 0.2856415212948181,
+          "dice_std": 0.180187786362106,
+          "iou_mean": 0.1794612260021344,
+          "iou_std": 0.12275373546644629,
+          "sensitivity_mean": 0.5354800249879669,
+          "sensitivity_std": 0.30981915676387567,
+          "specificity_mean": 0.9819463392938099,
+          "specificity_std": 0.01033285197699255
+        },
+        "0.6": {
+          "dice_mean": 0.2873439421706475,
+          "dice_std": 0.18008204884305262,
+          "iou_mean": 0.18060737905758253,
+          "iou_std": 0.12260657259245553,
+          "sensitivity_mean": 0.5247303636228592,
+          "sensitivity_std": 0.3126756607062925,
+          "specificity_mean": 0.9828120080378325,
+          "specificity_std": 0.010115930615122976
+        },
+        "0.7": {
+          "dice_mean": 0.2894523069666034,
+          "dice_std": 0.18237267335065988,
+          "iou_mean": 0.1823916801217012,
+          "iou_std": 0.12419592770410054,
+          "sensitivity_mean": 0.5104482044878033,
+          "sensitivity_std": 0.31733551692833567,
+          "specificity_mean": 0.9837182312112537,
+          "specificity_std": 0.009905101259520635
+        }
+      },
+      "best_threshold": 0.7,
+      "best_dice_mean": 0.2894523069666034
+    },
+    "fold_2": {
+      "checkpoint": "seven/seg/checkpoints/seg_fold2_best.pth",
+      "val_patients": [
+        "P003"
+      ],
+      "best_epoch": 52,
+      "thresholds": {
+        "0.3": {
+          "dice_mean": 0.6322593129792866,
+          "dice_std": 0.05044089656599427,
+          "iou_mean": 0.46424035640180916,
+          "iou_std": 0.05356445936527025,
+          "sensitivity_mean": 0.6142263983493474,
+          "sensitivity_std": 0.09185291971253723,
+          "specificity_mean": 0.991390803061596,
+          "specificity_std": 0.0012064364662695674
+        },
+        "0.4": {
+          "dice_mean": 0.627337762152457,
+          "dice_std": 0.05278746317574172,
+          "iou_mean": 0.4591616693832704,
+          "iou_std": 0.0556441186154557,
+          "sensitivity_mean": 0.5979050830483927,
+          "sensitivity_std": 0.09127822560425597,
+          "specificity_mean": 0.9919464153647128,
+          "specificity_std": 0.0011659138495194103
+        },
+        "0.5": {
+          "dice_mean": 0.6228310133496265,
+          "dice_std": 0.05655371251020806,
+          "iou_mean": 0.45468531725869454,
+          "iou_std": 0.05922936451706255,
+          "sensitivity_mean": 0.58181874393942,
+          "sensitivity_std": 0.09164867126320975,
+          "specificity_mean": 0.9925374083397527,
+          "specificity_std": 0.0012592719925146052
+        },
+        "0.6": {
+          "dice_mean": 0.6170825623542044,
+          "dice_std": 0.06117446253450176,
+          "iou_mean": 0.44903098506609446,
+          "iou_std": 0.0636501771404181,
+          "sensitivity_mean": 0.5651436066099486,
+          "sensitivity_std": 0.09244492142844482,
+          "specificity_mean": 0.9930912732779473,
+          "specificity_std": 0.001243696066484811
+        },
+        "0.7": {
+          "dice_mean": 0.6091114441631376,
+          "dice_std": 0.06707612024168852,
+          "iou_mean": 0.44123889072160977,
+          "iou_std": 0.0687106935765422,
+          "sensitivity_mean": 0.545470781294181,
+          "sensitivity_std": 0.09485647419777773,
+          "specificity_mean": 0.9936619255427644,
+          "specificity_std": 0.0012665263900775387
+        }
+      },
+      "best_threshold": 0.3,
+      "best_dice_mean": 0.6322593129792866
+    },
+    "fold_3": {
+      "checkpoint": "seven/seg/checkpoints/seg_fold3_best.pth",
+      "val_patients": [
+        "P004"
+      ],
+      "best_epoch": 94,
+      "thresholds": {
+        "0.3": {
+          "dice_mean": 0.6375515156404569,
+          "dice_std": 0.11024465320612517,
+          "iou_mean": 0.4777062890339167,
+          "iou_std": 0.1209008891647315,
+          "sensitivity_mean": 0.7758534039451921,
+          "sensitivity_std": 0.07293327709978449,
+          "specificity_mean": 0.9783380444588577,
+          "specificity_std": 0.012124028469421956
+        },
+        "0.4": {
+          "dice_mean": 0.6376879939783493,
+          "dice_std": 0.1101409921424384,
+          "iou_mean": 0.4778492645111838,
+          "iou_std": 0.12095577684837776,
+          "sensitivity_mean": 0.7667281826121716,
+          "sensitivity_std": 0.07402380392928246,
+          "specificity_mean": 0.9789888116920461,
+          "specificity_std": 0.011901193030833424
+        },
+        "0.5": {
+          "dice_mean": 0.6381733194522089,
+          "dice_std": 0.10992384794368969,
+          "iou_mean": 0.4783395255372589,
+          "iou_std": 0.12075198297178821,
+          "sensitivity_mean": 0.7588613014315015,
+          "sensitivity_std": 0.07524910581643514,
+          "specificity_mean": 0.9795886636478425,
+          "specificity_std": 0.011674768586926513
+        },
+        "0.6": {
+          "dice_mean": 0.6384362429337894,
+          "dice_std": 0.11068044795108786,
+          "iou_mean": 0.47875142965587975,
+          "iou_std": 0.12150367090895305,
+          "sensitivity_mean": 0.7499242254206724,
+          "sensitivity_std": 0.07721110054161125,
+          "specificity_mean": 0.9802073970444031,
+          "specificity_std": 0.011503236555311104
+        },
+        "0.7": {
+          "dice_mean": 0.6375006978728837,
+          "dice_std": 0.11145571922109482,
+          "iou_mean": 0.47788631038306734,
+          "iou_std": 0.12251190006404039,
+          "sensitivity_mean": 0.7386134419873774,
+          "sensitivity_std": 0.07988124850328329,
+          "specificity_mean": 0.980882643045312,
+          "specificity_std": 0.011294291921583833
+        }
+      },
+      "best_threshold": 0.6,
+      "best_dice_mean": 0.6384362429337894
+    }
+  },
+  "global_best_threshold_by_mean_dice": 0.3,
+  "global_best_mean_dice": 0.521347897771035
+}

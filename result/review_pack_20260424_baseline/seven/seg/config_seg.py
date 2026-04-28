@@ -19,7 +19,7 @@ SEG_VIS_DIR.mkdir(parents=True, exist_ok=True)
 # =========================
 # 数据
 # =========================
-PATIENTS = ["P001", "P003", "P004"]  # P002 excluded: annotation quality suspected
+PATIENTS = ["P001", "P002", "P003", "P004"]
 SPLIT_MODE = "lopo"          # "lopo" | "single_holdout"
 HOLDOUT_PATIENT = "P004"     # 仅 single_holdout 时使用
 
@@ -39,26 +39,19 @@ FREEZE_ENCODER = True        # 先冻结encoder，只训练decoder
 # =========================
 # 训练
 # =========================
-EPOCHS = 180
+EPOCHS = 300
 BATCH_SIZE = 4
-BASE_LR = 1e-3               # 回到 baseline 学习率，只保留 early stopping
+BASE_LR = 1e-3               # decoder lr，encoder冻结时可以更大
 ENCODER_LR_SCALE = 0.0       # 冻结时无效
 WEIGHT_DECAY = 0.05
 WARMUP_EPOCHS = 5
 USE_AMP = True
-MIN_EPOCHS = 80
-EARLY_STOPPING_PATIENCE = 50
-EVAL_THRESHOLD = 0.3         # 与 baseline 一致；新 checkpoint 再做阈值 sweep
 
 # =========================
 # 损失
 # =========================
-LOSS_MODE = "focal_tversky"  # "dice_focal" | "tversky" | "focal_tversky"
 LAMBDA_DICE = 1.0
 LAMBDA_BCE = 1.0
-TVERSKY_ALPHA = 0.3          # 降低 FP 权重以抑制过分割
-TVERSKY_BETA = 0.7           # 提高 FN 权重，保持召回不过度塌缩
-FOCAL_TVERSKY_GAMMA = 1.33
 
 # =========================
 # 其他

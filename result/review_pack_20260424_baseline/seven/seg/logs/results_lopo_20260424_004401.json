@@ -1,0 +1,96 @@
+{
+  "split_mode": "lopo",
+  "holdout_patient": null,
+  "mean_dice": 0.521179150449637,
+  "std_dice": 0.14244752896087481,
+  "fold_results": [
+    {
+      "fold": 0,
+      "train_patients": [
+        "P002",
+        "P003",
+        "P004"
+      ],
+      "val_patients": [
+        "P001"
+      ],
+      "best_dice": 0.5288407372935556,
+      "metrics": {
+        "dice_mean": 0.1215109582401002,
+        "dice_std": 0.12676256297342878,
+        "iou_mean": 0.06972911883154514,
+        "iou_std": 0.0748111625913426,
+        "sensitivity_mean": 0.08643962344416545,
+        "sensitivity_std": 0.10073830800844803,
+        "specificity_mean": 0.9992458913115467,
+        "specificity_std": 0.0014175621376986006
+      }
+    },
+    {
+      "fold": 1,
+      "train_patients": [
+        "P001",
+        "P003",
+        "P004"
+      ],
+      "val_patients": [
+        "P002"
+      ],
+      "best_dice": 0.2861398530416302,
+      "metrics": {
+        "dice_mean": 0.20071986206808026,
+        "dice_std": 0.21966903402263732,
+        "iou_mean": 0.13003339413044906,
+        "iou_std": 0.15235784088197996,
+        "sensitivity_mean": 0.3095536661216604,
+        "sensitivity_std": 0.3698877840487834,
+        "specificity_mean": 0.990313083846966,
+        "specificity_std": 0.006464055821795716
+      }
+    },
+    {
+      "fold": 2,
+      "train_patients": [
+        "P001",
+        "P002",
+        "P004"
+      ],
+      "val_patients": [
+        "P003"
+      ],
+      "best_dice": 0.6323469783084295,
+      "metrics": {
+        "dice_mean": 0.3536309514470331,
+        "dice_std": 0.11543161392148697,
+        "iou_mean": 0.22069644958086448,
+        "iou_std": 0.08441481933994241,
+        "sensitivity_mean": 0.28116682593123676,
+        "sensitivity_std": 0.08195656466873963,
+        "specificity_mean": 0.9921059620114931,
+        "specificity_std": 0.0037566344844449616
+      }
+    },
+    {
+      "fold": 3,
+      "train_patients": [
+        "P001",
+        "P002",
+        "P003"
+      ],
+      "val_patients": [
+        "P004"
+      ],
+      "best_dice": 0.6373890331549328,
+      "metrics": {
+        "dice_mean": 0.33433661458182135,
+        "dice_std": 0.31687189180507713,
+        "iou_mean": 0.24691687354081263,
+        "iou_std": 0.24432004840950725,
+        "sensitivity_mean": 0.2860780660882406,
+        "sensitivity_std": 0.2739651377204832,
+        "specificity_mean": 0.9945016951735819,
+        "specificity_std": 0.004897450398128756
+      }
+    }
+  ]
+}

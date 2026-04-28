@@ -1,0 +1,382 @@
+%%
+% BIThesis 毕业设计演示文稿模板 —— 使用 XeLaTeX 编译 The BIThesis Template for Presentation
+% This file has no copyright assigned and is placed in the Public Domain.
+% Compile with: xelatex -> biber -> xelatex -> xelatex
+%%
+
+% 请勿删除下面两行注释，以免影响编译。
+% !TeX program = xelatex
+% !BIB program = biber
+
+\documentclass[
+  %% ====== 这一部分选项将传递给 ctexbeamer，你也可以添加其他的选项 ====
+  % 修改 `aspectratio` 可以修改画布比例 比如 `43` 或者 `169`
+  aspectratio=169,
+  presentation,
+  %% ============================================================
+  % 设置封面的图片
+  titlegraphic=./images/bit_logo.pdf,
+  % 设置每页标题的 logo
+  framelogo=./images/bit_logo.pdf
+]{bitbeamer}
+
+%% --> 基本信息设置
+\title{AI科研助手探索结论与技术路线}
+\subtitle{从端到端Agent转向"模型驱动 + 人类引导"的MCP体系}
+\author{AutoDL团队}
+\institute{AutoDL}
+\date{\zhtoday}
+
+\usefonttheme{serif}              % 使用衬线字体
+\usefonttheme{professionalfonts}  % 数学公式字体
+
+% 引入你需要使用的包
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{color}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\setbeamertemplate{caption}[numbered]
+
+% 使用 bibtex
+\usepackage[
+  backend=biber,
+  style=gb7714-2015,
+  gbalign=gb7714-2015,
+  gbnamefmt=lowercase,
+  gbpub=false,
+  doi=false,
+  url=false,
+  eprint=false,
+  isbn=false,
+]{biblatex}
+
+\addbibresource{ref.bib}
+
+% 设置段落间距
+\parindent2em
+
+\begin{document}
+
+% 封面
+\frame{\titlepage}
+
+%
+%% --> 目录结构
+%
+\begin{frame}{目录}
+  \tableofcontents[hideallsubsections]
+\end{frame}
+
+%% 每一节开头显示目录，并高亮当前节的主题
+\AtBeginSection[]{\frame{\tableofcontents[currentsection,hideallsubsections]}}
+
+%% --> 正式内容开始
+%
+\section{探索范围与项目分类}
+
+\begin{frame}[t]
+  \frametitle{探索范围与项目分类（1/2）}
+
+  \textbf{调研了13个AI科研助手项目}，按交互形态和自动化程度分类：
+
+  \vspace{0.3cm}
+
+  \begin{table}
+    \centering
+    \tiny
+    \begin{tabular}{p{2.5cm}p{4cm}p{2cm}p{1.5cm}p{3cm}}
+      \toprule
+      \textbf{类型} & \textbf{项目} & \textbf{交互方式} & \textbf{自动化} & \textbf{特点} \\
+      \midrule
+      端到端自动化流水线 & AI-Scientist, AI-Scientist-v2, AgentLaboratory, AutoResearchClaw, EvoScientist & CLI命令启动 & 全自动 & 给定方向后自动完成文献→实验→论文全流程 \\
+      \midrule
+      TUI/Web工作台 & DeepScientist, Research-Claw, dr-claw & 终端UI/Web界面 & 半自动 & 可视化界面，用户主导每个阶段，可随时打断 \\
+      \midrule
+      对话式插件 & claude-scholar, ScienceClaw & 对话驱动 & 工具调用 & 依赖Claude Code，Skills系统，用户通过对话引导 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+\end{frame}
+
+\begin{frame}[t]
+  \frametitle{探索范围与项目分类（2/2）}
+
+  \begin{table}
+    \centering
+    \tiny
+    \begin{tabular}{p{2.5cm}p{4cm}p{2cm}p{1.5cm}p{3cm}}
+      \toprule
+      \textbf{类型} & \textbf{项目} & \textbf{交互方式} & \textbf{自动化} & \textbf{特点} \\
+      \midrule
+      工业R\&D框架 & RD-Agent (Microsoft) & Streamlit UI + CLI & 场景化 & 多场景支持（Kaggle、Qlib），偏工程应用 \\
+      \midrule
+      论文处理专项 & ClawPhD & 命令行 & 单功能 & 只做审稿、图表提取，不做实验 \\
+      \midrule
+      极简实验脚本 & autoresearch (Karpathy) & 单文件脚本 & 最小化 & 教学性质，5分钟实验迭代 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  \vspace{0.5cm}
+
+  \textbf{关键发现}：
+  \begin{itemize}
+    \item 端到端Agent流程固定，学术伦理风险高
+    \item TUI/Web工作台更符合"人类引导"理念，但都是独立应用
+    \item \textcolor{red}{\textbf{独立MCP Server（跨客户端通用）是空白赛道}}
+  \end{itemize}
+
+\end{frame}
+
+\section{论文获取探索结果}
+
+\begin{frame}[t]
+  \frametitle{论文获取探索结果}
+
+  \begin{table}
+    \centering
+    \scriptsize
+    \begin{tabular}{p{2.5cm}p{2cm}p{1.8cm}p{3.5cm}p{1.5cm}}
+      \toprule
+      \textbf{项目} & \textbf{获取方式} & \textbf{全文/摘要} & \textbf{数据源} & \textbf{合规性} \\
+      \midrule
+      AI-Scientist / v2 & API查询 & \textbf{仅摘要} & Semantic Scholar, OpenAlex & ✅ 合规 \\
+      \midrule
+      AutoResearchClaw & 知识库全量入库 & \textbf{全文PDF} & Semantic Scholar, OpenAlex & ⚠️ 未说明付费墙处理 \\
+      \midrule
+      ScienceClaw & 25+数据库集成 & 全文+结构化字段 & PubMed, UniProt, KEGG, PDB等 & ✅ 开放数据库 \\
+      \midrule
+      Research-Claw & Zotero双向同步 & 全文+摘要 & Zotero MCP & ✅ 用户自有文献库 \\
+      \midrule
+      claude-scholar & Zotero + Browser MCP & 摘要+网页 & Zotero、浏览器抓取 & ⚠️ 抓取合规性存疑 \\
+      \midrule
+      ClawPhD & PDF本地处理 & \textbf{全文PDF} & 本地文件 & ✅ 用户自备 \\
+      \midrule
+      DeepScientist & Scout阶段文献调研 & 摘要为主 & Semantic Scholar & ✅ 合规 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+\end{frame}
+
+\begin{frame}[t]
+  \frametitle{论文获取：核心问题与我们的方案}
+
+  \textbf{核心问题}：
+  \begin{itemize}
+    \item \textbf{摘要够用于筛选，但不够用于方法提取、参数复现}
+    \item 全文获取要么靠爬虫（法律风险），要么靠用户手动（体验差）
+    \item \textbf{付费墙是最大障碍}：Nature、IEEE、Elsevier等主流期刊需订阅
+    \item 只有Research-Claw通过Zotero走了"用户自有权限"路线
+  \end{itemize}
+
+  \vspace{0.5cm}
+
+  \textbf{我们的方案：图书馆MCP}
+  \begin{itemize}
+    \item \textcolor{blue}{\textbf{浏览器插件复用高校/机构session}}
+    \item \textbf{合规性}：用户用自己的账号访问自己有权限的内容
+    \item \textbf{当前}：可获取摘要
+    \item \textcolor{red}{\textbf{下一步：全文PDF下载 + 结构化解析}}
+  \end{itemize}
+
+\end{frame}
+
+\section{代码执行与沙箱探索结果}
+
+\begin{frame}[t]
+  \frametitle{代码执行与沙箱探索结果（1/2）}
+
+  \begin{table}
+    \centering
+    \scriptsize
+    \begin{tabular}{p{2.5cm}p{2.5cm}p{2.5cm}p{1.5cm}p{1.5cm}}
+      \toprule
+      \textbf{项目} & \textbf{执行方式} & \textbf{沙箱方案} & \textbf{硬件环境} & \textbf{安全性} \\
+      \midrule
+      autoresearch & subprocess + 5分钟超时 & \textbf{无沙箱} & CPU & ❌ 低 \\
+      \midrule
+      AI-Scientist & subprocess + 7200秒超时 & \textbf{无沙箱} & CPU & ❌ 低 \\
+      \midrule
+      AI-Scientist-v2 & 自定义解释器 + 树搜索 & 代码验证 & CPU & ⚠️ 中 \\
+      \midrule
+      AgentLaboratory & subprocess & \textbf{无沙箱} & CPU & ❌ 低 \\
+      \midrule
+      AutoResearchClaw & 多模式执行 & simulated → sandbox → \textbf{Docker} → SSH & CPU & ✅ 高（最完整） \\
+      \midrule
+      RD-Agent & Docker隔离 & \textbf{Docker容器} & CPU & ✅ 高 \\
+      \midrule
+      DeepScientist & bash\_exec + Heartbeat & 长会话（1小时+） & CPU & ⚠️ 中 \\
+      \midrule
+      EvoScientist & code agent + debug agent & 错误处理 & CPU & ⚠️ 中 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+\end{frame}
+
+\begin{frame}[t]
+  \frametitle{代码执行与沙箱探索结果（2/2）}
+
+  \textbf{沙箱方案总结}：
+  \begin{itemize}
+    \item \textbf{无沙箱}（直接subprocess）：autoresearch、AI-Scientist、AgentLaboratory
+    \item \textbf{Docker容器}：RD-Agent、AutoResearchClaw（只有2个真正做了隔离）
+    \item \textbf{云沙箱}：无项目使用E2B/Modal等现成方案
+  \end{itemize}
+
+  \vspace{0.5cm}
+
+  \textbf{关键发现}：
+  \begin{itemize}
+    \item 真正做Docker隔离的只有2个项目
+    \item \textcolor{red}{\textbf{所有项目都是CPU环境，没有GPU执行能力}}
+    \item 科研实验（尤其ML/DL）需要GPU，这是明显空白
+  \end{itemize}
+
+  \vspace{0.5cm}
+
+  \textbf{我们的方案：AutoDL MCP}
+  \begin{itemize}
+    \item \textcolor{blue}{\textbf{用户已有GPU实例，通过MCP接口管理}}
+    \item \textbf{对比E2B/Modal}：我们提供真实GPU环境，适合ML实验
+    \item \textbf{对比自建Docker}：用户无需额外付费，复用现有算力
+    \item \textbf{工具}：实例管理、任务提交、日志回传、结果下载
+  \end{itemize}
+
+\end{frame}
+
+\section{数据集与图表生成探索结果}
+
+\begin{frame}[t]
+  \frametitle{数据集下载}
+
+  \begin{table}
+    \centering
+    \small
+    \begin{tabular}{p{3.5cm}p{6cm}p{3cm}}
+      \toprule
+      \textbf{项目} & \textbf{方式} & \textbf{安全机制} \\
+      \midrule
+      AI-Scientist & 预置模板，数据集提前准备 & 无 \\
+      \midrule
+      AI-Scientist-v2 & \texttt{data\_dir} + \texttt{copy\_data} 参数 & 无 \\
+      \midrule
+      AgentLaboratory & 代码生成中包含下载逻辑 & 自动验证 \\
+      \midrule
+      AutoResearchClaw & 代码生成 + \textbf{安全扫描} & AST检查 + 禁止危险操作 \\
+      \midrule
+      RD-Agent & 场景化配置（Kaggle、Qlib等） & 场景隔离 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+\end{frame}
+
+\begin{frame}[t]
+  \frametitle{图表生成（1/2）}
+
+  \begin{table}
+    \centering
+    \tiny
+    \begin{tabular}{p{2.8cm}p{4.5cm}p{4.5cm}}
+      \toprule
+      \textbf{项目} & \textbf{方式} & \textbf{质量控制} \\
+      \midrule
+      AI-Scientist & \texttt{plot.py} 自动生成 → LaTeX集成 & 多轮改进 \\
+      \midrule
+      AI-Scientist-v2 & \texttt{perform\_plotting.py} + \textbf{VLM反馈} & AI看图评价质量 \\
+      \midrule
+      AutoResearchClaw & \textbf{FigureAgent}（5个子agent） & Planner/CodeGen/Renderer/Critic/Integrator \\
+      \midrule
+      ClawPhD & PaperBanana集成 & SVG+PPTX，可从论文提取图表编辑 \\
+      \midrule
+      RD-Agent & Streamlit实时监控UI & Web可视化 \\
+      \midrule
+      Research-Claw & 21种卡片类型 & 引用图谱、任务甘特图、版本历史 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+\end{frame}
+
+\begin{frame}[t]
+  \frametitle{图表生成（2/2）}
+
+  \textbf{关键发现}：
+  \begin{itemize}
+    \item 图表生成已经比较成熟，多数项目都有
+    \item \textbf{VLM反馈}（AI看图评价质量）是新趋势
+    \item 学术级图表需要专门的样式规范（AutoResearchClaw的FigureAgent做得最细）
+    \item Research-Claw的可视化最丰富（21种卡片类型）
+  \end{itemize}
+
+\end{frame}
+
+\section{我们的技术路线}
+
+\begin{frame}[t]
+  \frametitle{核心判断}
+
+  \begin{enumerate}
+    \item \textbf{不做端到端Agent}：流程固定，学术伦理风险高
+    \item \textbf{不做独立应用}（TUI/Web）：开发成本高，用户需要切换工具
+    \item \textcolor{blue}{\textbf{做独立MCP Server}}：跨客户端通用（Claude/Cursor/Windsurf等），模型驱动，人类引导
+  \end{enumerate}
+
+  \vspace{0.5cm}
+
+  \textbf{我们的独特优势}
+
+  \begin{table}
+    \centering
+    \small
+    \begin{tabular}{p{2.5cm}p{4.5cm}p{5cm}}
+      \toprule
+      \textbf{能力} & \textbf{现状} & \textbf{竞品对比} \\
+      \midrule
+      \textbf{图书馆MCP} & 浏览器插件复用高校session，合规获取订阅内容 & Research-Claw用Zotero但需手动导入，其他项目只有摘要或爬虫 \\
+      \midrule
+      \textbf{AutoDL算力} & 用户已有GPU实例，可直接执行ML实验 & 所有项目都是CPU环境，无GPU能力 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+\end{frame}
+
+\begin{frame}[t]
+  \frametitle{产品定位与下一步重点}
+
+  \textbf{产品定位}
+  \begin{itemize}
+    \item \textbf{形态}：独立MCP Server
+    \item \textbf{核心价值}：
+    \begin{enumerate}
+      \item 合规全文获取（解决付费墙）
+      \item GPU执行环境（解决ML实验需求）
+      \item 从论文到复现的完整链路
+    \end{enumerate}
+    \item \textbf{交互方式}：对话驱动，随时打断，人类主导
+  \end{itemize}
+
+  \vspace{0.5cm}
+
+  \textbf{下一步重点}
+  \begin{enumerate}
+    \item \textcolor{red}{\textbf{全文PDF获取}}：适配Top高校图书馆站点（这是核心壁垒）
+    \item \textbf{AutoDL接口封装}：实例管理、任务提交、日志回传
+    \item \textbf{MCP工具设计}：10\textasciitilde15个核心工具（文献、执行、知识库）
+  \end{enumerate}
+
+\end{frame}
+
+\begin{frame}[c]
+
+  谢谢!
+
+\end{frame}
+
+\end{document}

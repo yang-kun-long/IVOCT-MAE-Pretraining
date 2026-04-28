@@ -1,0 +1,70 @@
+{
+  "fold_0": {
+    "checkpoint": "seven/seg/checkpoints/seg_fold0_best.pth",
+    "epoch_index": 176,
+    "epoch_human": 177,
+    "dice_mean": 0.5288407372935556,
+    "dice_std": 0.15145755029955996,
+    "iou_mean": 0.374620481701352,
+    "iou_std": 0.14890337259597278,
+    "train_patients": [
+      "P002",
+      "P003",
+      "P004"
+    ],
+    "val_patients": [
+      "P001"
+    ]
+  },
+  "fold_1": {
+    "checkpoint": "seven/seg/checkpoints/seg_fold1_best.pth",
+    "epoch_index": 167,
+    "epoch_human": 168,
+    "dice_mean": 0.2861398530416302,
+    "dice_std": 0.1841795159213258,
+    "iou_mean": 0.1805107795339209,
+    "iou_std": 0.12664823485521692,
+    "train_patients": [
+      "P001",
+      "P003",
+      "P004"
+    ],
+    "val_patients": [
+      "P002"
+    ]
+  },
+  "fold_2": {
+    "checkpoint": "seven/seg/checkpoints/seg_fold2_best.pth",
+    "epoch_index": 51,
+    "epoch_human": 52,
+    "dice_mean": 0.6323469783084295,
+    "dice_std": 0.050347957914583845,
+    "iou_mean": 0.46432765124060593,
+    "iou_std": 0.05348478432041595,
+    "train_patients": [
+      "P001",
+      "P002",
+      "P004"
+    ],
+    "val_patients": [
+      "P003"
+    ]
+  },
+  "fold_3": {
+    "checkpoint": "seven/seg/checkpoints/seg_fold3_best.pth",
+    "epoch_index": 93,
+    "epoch_human": 94,
+    "dice_mean": 0.6373890331549328,
+    "dice_std": 0.11015274180275574,
+    "iou_mean": 0.47750980880849786,
+    "iou_std": 0.12074953487866345,
+    "train_patients": [
+      "P001",
+      "P002",
+      "P003"
+    ],
+    "val_patients": [
+      "P004"
+    ]
+  }
+}

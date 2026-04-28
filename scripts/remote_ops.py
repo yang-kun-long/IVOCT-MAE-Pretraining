@@ -12,6 +12,12 @@ Examples:
     python scripts/remote_ops.py exec "cd /root/CN_seg && git pull"
     python scripts/remote_ops.py download /root/CN_seg/result/file.tar.gz result/file.tar.gz
     python scripts/remote_ops.py upload local.txt /root/remote.txt
+
+NOTE (Git Bash / MSYS2): Git Bash auto-converts Unix paths like /root/... to Windows paths.
+Prefix commands with MSYS_NO_PATHCONV=1 to prevent this:
+
+    MSYS_NO_PATHCONV=1 python scripts/remote_ops.py upload local.txt /root/remote.txt
+    MSYS_NO_PATHCONV=1 python scripts/remote_ops.py exec "ls /root"
 """
 
 from __future__ import annotations
@@ -30,6 +36,21 @@ import paramiko
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SESSION_PATH = REPO_ROOT / ".claude" / "remote_session.json"
+
+# Git Bash on Windows converts /root/... to <git-install>/root/...
+# Detect and undo that conversion so users don't need MSYS_NO_PATHCONV=1.
+_MSYS_PREFIX_RE = None
+
+def _fix_remote_path(p: str) -> str:
+    """Undo Git Bash MSYS path conversion on remote (Linux) paths."""
+    import re
+    global _MSYS_PREFIX_RE
+    if _MSYS_PREFIX_RE is None:
+        _MSYS_PREFIX_RE = re.compile(r'^[A-Za-z]:[/\\].*?[/\\]Git[/\\](.*)')
+    m = _MSYS_PREFIX_RE.match(p)
+    if m:
+        return "/" + m.group(1).replace("\\", "/")
+    return p
 
 
 def parse_args() -> argparse.Namespace:
@@ -68,6 +89,13 @@ def parse_args() -> argparse.Namespace:
     upload.add_argument("remote_path", help="Remote destination path")
 
     return parser.parse_args()
+
+
+def _postprocess_args(args: argparse.Namespace) -> argparse.Namespace:
+    """Fix Git Bash MSYS path conversion on any remote_path argument."""
+    if hasattr(args, "remote_path"):
+        args.remote_path = _fix_remote_path(args.remote_path)
+    return args
 
 
 def session_file_from_args(args: argparse.Namespace) -> Path:
@@ -172,8 +200,11 @@ def ensure_remote_dirs(sftp: paramiko.SFTPClient, remote_path: str) -> None:
         current = f"{current}/{part}" if current else f"/{part}"
         try:
             sftp.stat(current)
-        except FileNotFoundError:
-            sftp.mkdir(current)
+        except (FileNotFoundError, IOError, OSError):
+            try:
+                sftp.mkdir(current)
+            except (FileNotFoundError, IOError, OSError):
+                pass  # already exists or permission on parent dir
 
 
 def download_file(args: argparse.Namespace) -> int:
@@ -193,15 +224,20 @@ def download_file(args: argparse.Namespace) -> int:
 
 
 def upload_file(args: argparse.Namespace) -> int:
-    session = merge_session(args, prompt_for_password=True)
+    session = merge_session(args, prompt_for_password=False)
     local_path = Path(args.local_path).expanduser().resolve()
     if not local_path.exists():
         raise SystemExit(f"Local file does not exist: {local_path}")
 
     client = ssh_client(session)
     try:
+        remote_dir = posixpath.dirname(args.remote_path)
+        if remote_dir:
+            stdin, stdout, stderr = client.exec_command(f"mkdir -p {remote_dir}")
+            stdin.close()
+            stdout.read()
+            stdout.channel.recv_exit_status()
         with client.open_sftp() as sftp:
-            ensure_remote_dirs(sftp, args.remote_path)
             sftp.put(str(local_path), args.remote_path)
     finally:
         client.close()
@@ -211,7 +247,7 @@ def upload_file(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
-    args = parse_args()
+    args = _postprocess_args(parse_args())
     if args.command == "save-session":
         return save_session(args)
     if args.command == "show-session":

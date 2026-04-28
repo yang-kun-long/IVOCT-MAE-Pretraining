@@ -45,3 +45,6 @@ ENV/
 
 # Local remote session secrets
 .claude/remote_session.json
+
+TinyTex/
+

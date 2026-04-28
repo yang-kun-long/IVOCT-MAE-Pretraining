@@ -1,0 +1,24 @@
+{
+  "tag": "20260424_baseline",
+  "created_at": "2026-04-24T10:42:19",
+  "repo_root": "/root/CN_seg_baseline",
+  "results_json": "seven/seg/logs/results_lopo_20260424_004401.json",
+  "collected_files": [
+    "SEGMENTATION_NOTES.md",
+    "result/review_pack_20260424_baseline/checkpoint_summary.json",
+    "result/review_pack_20260424_baseline/fold_0_best_epoch_177.png",
+    "result/review_pack_20260424_baseline/fold_1_best_epoch_168.png",
+    "result/review_pack_20260424_baseline/fold_2_best_epoch_052.png",
+    "result/review_pack_20260424_baseline/fold_3_best_epoch_094.png",
+    "result/seg_lopo_baseline_20260423.md",
+    "seven/config_v2.py",
+    "seven/models/mae_hybrid_v2.py",
+    "seven/seg/config_seg.py",
+    "seven/seg/datasets/ivoct_seg_dataset.py",
+    "seven/seg/logs/results_lopo_20260424_004401.json",
+    "seven/seg/models/seg_model.py",
+    "seven/seg/train_seg.py",
+    "seven/seg/utils/seg_losses.py",
+    "seven/seg/utils/seg_metrics.py"
+  ]
+}
