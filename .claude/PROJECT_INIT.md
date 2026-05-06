@@ -11,6 +11,7 @@ The current codebase is small, but several documents describe an intended or his
 ## Top-Level Map
 
 - `CLAUDE.md`: main Claude-facing repository guidance
+- `.claude/REMOTE_CONTEXT.md`: remote server path, SSH helper usage, sync state, and server environment notes
 - `DEPLOY.md`: segmentation training/evaluation quick start
 - `IMPROVEMENTS.md`: version history and intended MAE improvements
 - `SEGMENTATION_NOTES.md`: the most useful bug log for the segmentation branch
@@ -158,3 +159,5 @@ If the request is to continue development rather than just inspect:
 `.claude/settings.local.json` currently allows broad local Python execution and basic git initialization/add operations in Claude. That file is environment-specific; do not rely on it as project logic.
 
 For local remote access workflows, use `scripts/remote_ops.py`. Session credentials should be saved only to `.claude/remote_session.json`, which is git-ignored and intended to change across conversations or machines.
+
+For server-specific context, read `.claude/REMOTE_CONTEXT.md` before issuing remote commands. It records the remote repo path, current sync state, safe update pattern, ignored large artifacts, and non-secret environment-variable conventions.
