@@ -38,34 +38,48 @@ class MAESegmenter(nn.Module):
     Segmentation model using pretrained MAE encoder + UNet-style decoder.
 
     Architecture:
-        - Encoder: HybridMAEViT (patch=8, produces 32x32 token grid at 384 dim)
-        - Decoder: 4-stage upsampling (32→64→128→256) with channel reduction
+        - Encoder: HybridMAEViT (patch=16, produces 16x16 token grid at 384 dim)
+        - Decoder: 4-stage upsampling (16→32→64→128→256) with channel reduction
     """
-    def __init__(self, mae_checkpoint_path, freeze_encoder=False):
+    def __init__(self, mae_checkpoint_path, patch_size=16, freeze_encoder=False,
+                 use_adapter=False, adapter_bottleneck=64):
         super().__init__()
 
-        # Build MAE encoder (must use patch=8 to match checkpoint)
+        # Build MAE encoder (must match checkpoint configuration)
         self.encoder = HybridMAEViT(
             img_size=256,
-            patch_size=8,
+            patch_size=patch_size,
             in_chans=1,
             embed_dim=384,
             depth=12,
             num_heads=6,
-            decoder_embed_dim=256,
-            decoder_depth=4,
+            decoder_embed_dim=384,
+            decoder_depth=8,
             decoder_num_heads=8,
             mlp_ratio=4.0,
             norm_pix_loss=True,
             fg_mask_bias=0.6,
-            mask_mode="foreground_aware"
+            mask_mode="foreground_aware",
+            use_adapter=use_adapter,
+            adapter_bottleneck=adapter_bottleneck,
         )
 
         # Load pretrained weights
         print(f"Loading MAE checkpoint from {mae_checkpoint_path}")
         ckpt = torch.load(mae_checkpoint_path, map_location='cpu', weights_only=False)
-        self.encoder.load_state_dict(ckpt["model"], strict=True)
-        print("MAE encoder loaded successfully")
+
+        # Load encoder weights (including adapters if present)
+        if "model" in ckpt:
+            state_dict = ckpt["model"]
+        else:
+            state_dict = ckpt
+
+        # Filter out decoder weights (we only need encoder)
+        encoder_state_dict = {k: v for k, v in state_dict.items()
+                             if not k.startswith('decoder') and not k.startswith('mask_token')}
+
+        self.encoder.load_state_dict(encoder_state_dict, strict=False)
+        print(f"MAE encoder loaded successfully (patch_size={patch_size}, use_adapter={use_adapter})")
 
         # Freeze encoder if requested
         if freeze_encoder:
@@ -73,13 +87,52 @@ class MAESegmenter(nn.Module):
                 param.requires_grad = False
             print("Encoder frozen")
 
-        # Segmentation decoder: 32→64→128→256, with deeper double-conv blocks
-        self.decoder = nn.Sequential(
-            UpBlock(384, 256),   # 32 → 64
-            UpBlock(256, 128),   # 64 → 128
-            UpBlock(128, 64),    # 128 → 256
-            nn.Conv2d(64, 1, kernel_size=1)
-        )
+        # Calculate spatial dimensions after patch embedding
+        # patch_size=16: 256/16 = 16x16 grid
+        # patch_size=8:  256/8  = 32x32 grid
+        self.patch_size = patch_size
+        self.grid_size = 256 // patch_size
+
+        # Segmentation decoder: adapt to grid size
+        if patch_size == 16:
+            # 16→32→64→128→256 (4 upsampling stages)
+            self.decoder = nn.Sequential(
+                UpBlock(384, 256),   # 16 → 32
+                UpBlock(256, 128),   # 32 → 64
+                UpBlock(128, 64),    # 64 → 128
+                UpBlock(64, 32),     # 128 → 256
+                nn.Conv2d(32, 1, kernel_size=1)
+            )
+        elif patch_size == 8:
+            # 32→64→128→256 (3 upsampling stages)
+            self.decoder = nn.Sequential(
+                UpBlock(384, 256),   # 32 → 64
+                UpBlock(256, 128),   # 64 → 128
+                UpBlock(128, 64),    # 128 → 256
+                nn.Conv2d(64, 1, kernel_size=1)
+            )
+        else:
+            raise ValueError(f"Unsupported patch_size: {patch_size}")
+
+        # Initialize decoder properly
+        self._init_decoder()
+
+    def _init_decoder(self):
+        """Initialize decoder weights properly for segmentation."""
+        for m in self.decoder.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    # For final layer, initialize bias to predict low probability
+                    # (since foreground is rare ~2-5%)
+                    if m.out_channels == 1:  # Final layer
+                        # sigmoid(-4) ≈ 0.018, close to actual fg_ratio of 0.025
+                        nn.init.constant_(m.bias, -4.0)
+                    else:
+                        nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
         """
@@ -90,26 +143,25 @@ class MAESegmenter(nn.Module):
             [B, 1, 256, 256] segmentation logits (before sigmoid)
         """
         B = x.shape[0]
-        model_training = self.encoder.training
 
         # Bypass random_masking to preserve spatial token order
-        with torch.no_grad() if not model_training else torch.enable_grad():
-            x = self.encoder.patch_embed(x)
-            x = x + self.encoder.pos_embed[:, 1:, :]
-            cls_token = self.encoder.cls_token + self.encoder.pos_embed[:, :1, :]
-            cls_tokens = cls_token.expand(B, -1, -1)
-            x = torch.cat((cls_tokens, x), dim=1)
-            for blk in self.encoder.blocks:
-                x = blk(x)
-            latent = self.encoder.norm(x)
+        # Note: gradient flow is controlled by param.requires_grad, not torch.no_grad()
+        x = self.encoder.patch_embed(x)
+        x = x + self.encoder.pos_embed[:, 1:, :]
+        cls_token = self.encoder.cls_token + self.encoder.pos_embed[:, :1, :]
+        cls_tokens = cls_token.expand(B, -1, -1)
+        x = torch.cat((cls_tokens, x), dim=1)
+        for blk in self.encoder.blocks:
+            x = blk(x)
+        latent = self.encoder.norm(x)
 
-        # latent: [B, 1025, 384] (1024 patches + 1 CLS token)
+        # latent: [B, N+1, 384] where N = grid_size^2
         # Remove CLS token and reshape to spatial grid
-        tokens = latent[:, 1:, :]  # [B, 1024, 384]
+        tokens = latent[:, 1:, :]  # [B, N, 384]
 
-        # Reshape to 2D grid: 1024 = 32 × 32 (from patch_size=8 on 256px image)
-        h = w = 32
-        tokens = tokens.transpose(1, 2).reshape(B, 384, h, w)  # [B, 384, 32, 32]
+        # Reshape to 2D grid
+        h = w = self.grid_size
+        tokens = tokens.transpose(1, 2).reshape(B, 384, h, w)  # [B, 384, h, w]
 
         # Decode to segmentation map
         logits = self.decoder(tokens)  # [B, 1, 256, 256]

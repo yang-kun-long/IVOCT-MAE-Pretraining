@@ -17,6 +17,7 @@ import config_seg as config
 from datasets import IVOCTSegDataset
 from models import MAESegmenter
 from utils import seg_loss, compute_metrics, aggregate_metrics, save_seg_visualization
+from utils.progress_tracker import ProgressTracker
 
 
 def get_splits(split_mode, holdout_patient):
@@ -121,11 +122,20 @@ def evaluate(model, loader, device, threshold, vis_dir=None, epoch=None):
     return agg_metrics
 
 
-def train_fold(fold_idx, train_patients, val_patients, device):
+def train_fold(fold_idx, train_patients, val_patients, device, progress_tracker=None):
     """Train a single fold"""
     print(f"\n{'='*70}")
     print(f"Fold {fold_idx + 1}: Train={train_patients}, Val={val_patients}")
     print(f"{'='*70}")
+
+    # Notify progress tracker
+    if progress_tracker:
+        progress_tracker.start_fold(
+            fold_idx=fold_idx,
+            total_epochs=config.EPOCHS,
+            train_patients=train_patients,
+            val_patients=val_patients
+        )
 
     # Create datasets
     train_dataset = IVOCTSegDataset(
@@ -153,7 +163,10 @@ def train_fold(fold_idx, train_patients, val_patients, device):
     # Create model
     model = MAESegmenter(
         config.MAE_CHECKPOINT,
-        freeze_encoder=config.FREEZE_ENCODER
+        patch_size=config.PATCH_SIZE,
+        freeze_encoder=config.FREEZE_ENCODER,
+        use_adapter=config.USE_ADAPTER,
+        adapter_bottleneck=config.ADAPTER_BOTTLENECK,
     ).to(device)
 
     # Optimizer with differential learning rates
@@ -210,8 +223,20 @@ def train_fold(fold_idx, train_patients, val_patients, device):
         print(f"Val Dice: {val_metrics['dice_mean']:.4f} ± {val_metrics['dice_std']:.4f}")
         print(f"Val IoU:  {val_metrics['iou_mean']:.4f} ± {val_metrics['iou_std']:.4f}")
 
+        # Update progress tracker
+        is_best = val_metrics['dice_mean'] > best_dice
+        if progress_tracker:
+            progress_tracker.update_epoch(
+                fold_idx=fold_idx,
+                epoch=epoch + 1,
+                train_loss=train_loss,
+                val_dice=val_metrics['dice_mean'],
+                val_iou=val_metrics['iou_mean'],
+                is_best=is_best
+            )
+
         # Save best model
-        if val_metrics['dice_mean'] > best_dice:
+        if is_best:
             best_dice = val_metrics['dice_mean']
             best_epoch = epoch
             best_metrics = val_metrics
@@ -238,6 +263,15 @@ def train_fold(fold_idx, train_patients, val_patients, device):
             break
 
     print(f"\nFold {fold_idx + 1} finished. Best Dice: {best_dice:.4f} at epoch {best_epoch + 1}")
+
+    # Notify progress tracker fold completion
+    if progress_tracker:
+        progress_tracker.finish_fold(
+            fold_idx=fold_idx,
+            best_dice=best_dice,
+            metrics=best_metrics if best_metrics is not None else val_metrics
+        )
+
     return best_dice, best_metrics if best_metrics is not None else val_metrics
 
 
@@ -247,6 +281,8 @@ def main():
                         help='Split mode: lopo or single_holdout (overrides config)')
     parser.add_argument('--holdout', type=str, default=None,
                         help='Holdout patient for single_holdout mode (overrides config)')
+    parser.add_argument('--fold', type=int, default=None,
+                        help='Run specific fold only (0-based index)')
     args = parser.parse_args()
 
     # Override config if specified
@@ -268,9 +304,20 @@ def main():
     splits = get_splits(split_mode, holdout_patient)
     print(f"Total folds: {len(splits)}")
 
+    # Filter to specific fold if requested
+    if args.fold is not None:
+        if args.fold < 0 or args.fold >= len(splits):
+            raise ValueError(f"Fold {args.fold} out of range [0, {len(splits)-1}]")
+        print(f"Running only fold {args.fold}")
+        splits = [splits[args.fold]]
+        fold_indices = [args.fold]
+    else:
+        fold_indices = list(range(len(splits)))
+
     # Train each fold
     fold_results = []
-    for fold_idx, (train_patients, val_patients) in enumerate(splits):
+    for idx, (train_patients, val_patients) in enumerate(splits):
+        fold_idx = fold_indices[idx]
         best_dice, val_metrics = train_fold(fold_idx, train_patients, val_patients, device)
         fold_results.append({
             'fold': fold_idx,

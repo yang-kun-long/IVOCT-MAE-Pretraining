@@ -19,7 +19,7 @@ SEG_VIS_DIR.mkdir(parents=True, exist_ok=True)
 # =========================
 # 数据
 # =========================
-PATIENTS = ["P001", "P003", "P004"]  # P002 excluded: annotation quality suspected
+PATIENTS = ["P001", "P002", "P003", "P004"]  # 恢复旧的 4 个患者，验证是否能复现 0.55
 SPLIT_MODE = "lopo"          # "lopo" | "single_holdout"
 HOLDOUT_PATIENT = "P004"     # 仅 single_holdout 时使用
 
@@ -30,10 +30,12 @@ IN_CHANS = 1
 # =========================
 # 模型（必须与 checkpoint 匹配）
 # =========================
-PATCH_SIZE = 8
+PATCH_SIZE = 8               # 匹配预训练模型（实际是 8，不是 16）
 EMBED_DIM = 384
 DEPTH = 12
 NUM_HEADS = 6
+USE_ADAPTER = True           # 新增：加载适配器权重
+ADAPTER_BOTTLENECK = 64      # 新增：适配器瓶颈维度
 FREEZE_ENCODER = True        # 先冻结encoder，只训练decoder
 
 # =========================
@@ -53,11 +55,11 @@ EVAL_THRESHOLD = 0.3         # 与 baseline 一致；新 checkpoint 再做阈值
 # =========================
 # 损失
 # =========================
-LOSS_MODE = "focal_tversky"  # "dice_focal" | "tversky" | "focal_tversky"
+LOSS_MODE = "dice_bce"       # 恢复 baseline：简单的 Dice + BCE
 LAMBDA_DICE = 1.0
 LAMBDA_BCE = 1.0
-TVERSKY_ALPHA = 0.3          # 降低 FP 权重以抑制过分割
-TVERSKY_BETA = 0.7           # 提高 FN 权重，保持召回不过度塌缩
+TVERSKY_ALPHA = 0.3          # focal_tversky 模式才用
+TVERSKY_BETA = 0.7
 FOCAL_TVERSKY_GAMMA = 1.33
 
 # =========================

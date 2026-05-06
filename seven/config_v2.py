@@ -40,12 +40,22 @@ DECODER_EMBED_DIM = 384  # 改进：256 → 384，增加重建容量
 DECODER_DEPTH = 8        # 改进：4 → 8，增强重建能力
 DECODER_NUM_HEADS = 8
 
-MASK_RATIO = 0.50        # v4 改进：0.60 → 0.50，进一步降低重建难度
+MASK_RATIO = 0.65        # 数据集扩展：0.50 → 0.65，更难的重建任务
 NORM_PIX_LOSS = True
 
 # foreground-aware masking
 FG_MASK_BIAS = 0.6
 MASK_MODE = "foreground_aware"   # "random" or "foreground_aware"
+
+# =========================
+# Adapter Tuning (NEW)
+# =========================
+USE_ADAPTER = True       # 启用适配器微调
+ADAPTER_BOTTLENECK = 64  # 适配器瓶颈维度 (32/64/128)
+FREEZE_MODE = "adapter_only"  # "none" / "adapter_only" / "full"
+# - "none": 全量训练（所有参数可训练）
+# - "adapter_only": 冻结 encoder，只训练 adapter + decoder
+# - "full": 冻结整个 encoder（包括 adapter）+ 训练 decoder
 
 # =========================
 # 损失
@@ -57,12 +67,12 @@ LAMBDA_GRAD = 0.2        # 改进：0.10 → 0.2，更重视边缘保持
 # =========================
 # 训练
 # =========================
-BATCH_SIZE = 32
+BATCH_SIZE = 64          # 数据集扩展 + 5090 32GB：32 → 64
 NUM_WORKERS = 4
-EPOCHS = 400             # v4 改进：300 → 400，更充分训练
-WARMUP_EPOCHS = 10
+EPOCHS = 200             # 数据集扩展：400 → 200（数据量 5 倍，减少重复）
+WARMUP_EPOCHS = 20       # 更平滑的启动：10 → 20
 
-BASE_LR = 1.5e-4
+BASE_LR = 3e-4           # 配合 batch size 翻倍：1.5e-4 → 3e-4
 WEIGHT_DECAY = 0.05
 BETAS = (0.9, 0.95)
 
@@ -70,4 +80,4 @@ DEVICE = "cuda"
 SEED = 42
 SAVE_FREQ = 10
 VIS_FREQ = 10
-USE_AMP = True
+USE_AMP = True           # 混合精度训练，充分利用 5090

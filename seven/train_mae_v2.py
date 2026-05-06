@@ -3,11 +3,13 @@ from pathlib import Path
 import json
 import sys
 import logging
+import time
 from datetime import datetime
 import torch
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
 from torch.cuda.amp import GradScaler
+from tqdm import tqdm
 
 import config_v2 as config
 from datasets.ivoct_pretrain_dataset_v2 import IVOCTPretrainDatasetV2
@@ -16,6 +18,7 @@ from engine.pretrain_engine_v2 import train_one_epoch_v2
 from utils.misc import set_seed, save_checkpoint
 from utils.lr_sched import adjust_learning_rate
 from utils.visualization_v2 import save_reconstruction_four_panel
+from utils.notifier import Notifier
 
 
 def setup_logger():
@@ -57,24 +60,39 @@ def main():
     logger.info(f"Log file: {log_file}")
     logger.info("=" * 80)
 
+    # 初始化通知系统
+    notifier = Notifier()
+    if notifier.enabled:
+        logger.info("Notification system enabled (Server酱)")
+    else:
+        logger.info("Notification system disabled (set SERVERCHAN_KEY to enable)")
+
     set_seed(config.SEED)
     logger.info(f"Random seed: {config.SEED}")
 
     device = torch.device(config.DEVICE if torch.cuda.is_available() else "cpu")
     logger.info(f"Device: {device}")
+    gpu_name = "N/A"
     if torch.cuda.is_available():
-        logger.info(f"GPU: {torch.cuda.get_device_name(0)}")
+        gpu_name = torch.cuda.get_device_name(0)
+        logger.info(f"GPU: {gpu_name}")
         logger.info(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
 
     # 记录配置
     logger.info("-" * 80)
     logger.info("Configuration:")
+    logger.info(f"  Dataset: {config.DATA_DIR}")
     logger.info(f"  Image size: {config.IMG_SIZE}")
     logger.info(f"  Batch size: {config.BATCH_SIZE}")
     logger.info(f"  Epochs: {config.EPOCHS}")
     logger.info(f"  Learning rate: {config.BASE_LR}")
+    logger.info(f"  Warmup epochs: {config.WARMUP_EPOCHS}")
     logger.info(f"  Mask ratio: {config.MASK_RATIO}")
     logger.info(f"  Loss weights: MSE={config.LAMBDA_MSE}, SSIM={config.LAMBDA_SSIM}, Grad={config.LAMBDA_GRAD}")
+    logger.info(f"  Adapter tuning: {config.USE_ADAPTER}")
+    if config.USE_ADAPTER:
+        logger.info(f"    Bottleneck dim: {config.ADAPTER_BOTTLENECK}")
+        logger.info(f"    Freeze mode: {config.FREEZE_MODE}")
     logger.info("-" * 80)
 
     try:
@@ -103,14 +121,28 @@ def main():
             norm_pix_loss=config.NORM_PIX_LOSS,
             fg_mask_bias=config.FG_MASK_BIAS,
             mask_mode=config.MASK_MODE,
+            use_adapter=config.USE_ADAPTER,
+            adapter_bottleneck=config.ADAPTER_BOTTLENECK,
         ).to(device)
 
-        total_params = sum(p.numel() for p in model.parameters())
-        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        logger.info(f"Model created: {total_params:,} total params, {trainable_params:,} trainable")
+        # Apply freezing if using adapter tuning
+        if config.USE_ADAPTER and config.FREEZE_MODE != "none":
+            model.freeze_encoder(freeze_mode=config.FREEZE_MODE)
 
+        # Get parameter statistics
+        param_stats = model.get_trainable_params()
+        logger.info(f"Model created:")
+        logger.info(f"  Total params: {param_stats['total']:,}")
+        logger.info(f"  Trainable params: {param_stats['trainable']:,} ({param_stats['trainable_ratio']:.2f}%)")
+        logger.info(f"  Encoder params: {param_stats['encoder']:,}")
+        logger.info(f"  Decoder params: {param_stats['decoder']:,}")
+        if config.USE_ADAPTER:
+            logger.info(f"  Adapter params: {param_stats['adapter']:,}")
+
+        # Only optimize trainable parameters
+        trainable_params = [p for p in model.parameters() if p.requires_grad]
         optimizer = AdamW(
-            model.parameters(),
+            trainable_params,
             lr=config.BASE_LR,
             betas=config.BETAS,
             weight_decay=config.WEIGHT_DECAY
@@ -126,9 +158,25 @@ def main():
 
     log_history = []
     best_loss = 1e9
+    start_time = time.time()
+
     logger.info("=" * 80)
     logger.info("Starting training loop")
+    logger.info(f"Training mode: {'Adapter Tuning' if config.USE_ADAPTER else 'Full Training'}")
+    if config.USE_ADAPTER:
+        logger.info(f"  Freeze mode: {config.FREEZE_MODE}")
+        logger.info(f"  Training {param_stats['trainable']:,} / {param_stats['total']:,} params ({param_stats['trainable_ratio']:.2f}%)")
     logger.info("=" * 80)
+
+    # Send training started notification
+    notifier.training_started({
+        'dataset_size': len(dataset),
+        'batch_size': config.BATCH_SIZE,
+        'epochs': config.EPOCHS,
+        'lr': config.BASE_LR,
+        'mode': 'Adapter Tuning' if config.USE_ADAPTER else 'Full Training',
+        'gpu': gpu_name
+    })
 
     for epoch in range(1, config.EPOCHS + 1):
         try:
@@ -174,6 +222,9 @@ def main():
             }
             log_history.append(log_item)
 
+            # Send epoch notification (every 10 epochs)
+            notifier.epoch_completed(epoch, config.EPOCHS, metrics)
+
             if epoch % config.SAVE_FREQ == 0 or epoch == config.EPOCHS:
                 ckpt_path = config.CHECKPOINT_DIR / f"mae_v2_epoch_{epoch}.pth"
                 save_checkpoint({
@@ -196,6 +247,7 @@ def main():
                     "metrics": metrics
                 }, best_path)
                 logger.info(f"New best model saved: {best_path} (loss={best_loss:.6f})")
+                notifier.checkpoint_saved(epoch, best_loss, is_best=True)
 
             if epoch % config.VIS_FREQ == 0 or epoch == 1:
                 model.eval()
@@ -213,11 +265,22 @@ def main():
 
         except Exception as e:
             logger.error(f"Error in epoch {epoch}: {e}", exc_info=True)
+            notifier.training_error(epoch, str(e))
             raise
+
+    # Training completed
+    elapsed_time = time.time() - start_time
+    hours = int(elapsed_time // 3600)
+    minutes = int((elapsed_time % 3600) // 60)
+    time_str = f"{hours}h {minutes}m"
 
     logger.info("=" * 80)
     logger.info("Training completed successfully")
+    logger.info(f"Total time: {time_str}")
     logger.info("=" * 80)
+
+    # Send completion notification
+    notifier.training_completed(config.EPOCHS, best_loss, time_str)
 
     # 导出 encoder-only 权重
     try:

@@ -1,0 +1,46 @@
+{
+  "experiment_name": "stratified_4fold_baseline",
+  "description": "Stratified 4-fold cross-validation with frozen encoder",
+  "start_time": "2026-05-04T20:00:00",
+  "strategy": {
+    "split_mode": "stratified_4fold",
+    "num_folds": 4,
+    "encoder_frozen": true,
+    "use_adapter": true,
+    "loss_function": "focal_tversky",
+    "max_epochs": 180,
+    "early_stopping_patience": 50
+  },
+  "model": {
+    "encoder": "mae_v2_best.pth",
+    "decoder_layers": 4,
+    "learning_rate": 0.0002
+  },
+  "data": {
+    "total_patients": 19,
+    "total_samples": 268,
+    "folds": [
+      {
+        "fold": 0,
+        "val_patients": ["P014", "P015", "P010", "P011"],
+        "train_patients": ["P008", "P013", "P009", "P001", "P012", "P017", "P005", "P019", "P007", "P018", "P016", "P002", "P003", "P004", "P006"]
+      },
+      {
+        "fold": 1,
+        "val_patients": ["P008", "P013", "P009", "P001"],
+        "train_patients": ["P014", "P015", "P010", "P011", "P012", "P017", "P005", "P019", "P007", "P018", "P016", "P002", "P003", "P004", "P006"]
+      },
+      {
+        "fold": 2,
+        "val_patients": ["P012", "P017", "P005", "P019"],
+        "train_patients": ["P014", "P015", "P010", "P011", "P008", "P013", "P009", "P001", "P007", "P018", "P016", "P002", "P003", "P004", "P006"]
+      },
+      {
+        "fold": 3,
+        "val_patients": ["P007", "P018", "P016", "P002", "P003", "P004", "P006"],
+        "train_patients": ["P014", "P015", "P010", "P011", "P008", "P013", "P009", "P001", "P012", "P017", "P005", "P019"]
+      }
+    ]
+  },
+  "notes": "Baseline experiment with stratified split to balance foreground ratios"
+}

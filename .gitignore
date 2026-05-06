@@ -3,6 +3,20 @@ DATA/
 
 # 训练结果（checkpoints, logs, visualizations）
 results/
+DATA_backup_*/
+*.pth
+*.pt
+*.ckpt
+
+# MAE/segmentation generated training artifacts
+seven/checkpoints_v2/
+seven/logs_v2/
+seven/recon_vis_v2/
+seven/seg/checkpoints/
+seven/seg/logs/
+seven/seg/vis/
+seven/seg/*.log
+seven/seg/*.pid
 
 # 分割训练输出
 seven/seg/seg_checkpoints/
@@ -12,6 +26,7 @@ seven/seg/seg_vis/
 # 项目备份
 *.tar.gz
 *.zip
+.tmp/
 
 # Python
 __pycache__/

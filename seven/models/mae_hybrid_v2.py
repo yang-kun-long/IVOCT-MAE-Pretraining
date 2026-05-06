@@ -6,6 +6,61 @@ import numpy as np
 from timm.models.vision_transformer import Block
 
 
+class Adapter(nn.Module):
+    """
+    Adapter module for parameter-efficient fine-tuning.
+    Inserted after each transformer block's MLP.
+
+    Args:
+        dim: Input/output dimension
+        bottleneck: Bottleneck dimension (compression ratio = dim/bottleneck)
+        dropout: Dropout rate
+        init_scale: Initial scale for residual connection
+    """
+    def __init__(self, dim=384, bottleneck=64, dropout=0.1, init_scale=1e-3):
+        super().__init__()
+        self.down_proj = nn.Linear(dim, bottleneck)
+        self.activation = nn.GELU()
+        self.up_proj = nn.Linear(bottleneck, dim)
+        self.dropout = nn.Dropout(dropout)
+        self.scale = nn.Parameter(torch.ones(1) * init_scale)
+
+        # Initialize with small weights for stable training
+        nn.init.xavier_uniform_(self.down_proj.weight, gain=init_scale)
+        nn.init.zeros_(self.down_proj.bias)
+        nn.init.xavier_uniform_(self.up_proj.weight, gain=init_scale)
+        nn.init.zeros_(self.up_proj.bias)
+
+    def forward(self, x):
+        residual = x
+        x = self.down_proj(x)
+        x = self.activation(x)
+        x = self.dropout(x)
+        x = self.up_proj(x)
+        x = self.dropout(x)
+        return residual + self.scale * x
+
+
+class BlockWithAdapter(nn.Module):
+    """
+    Transformer Block with optional Adapter module.
+    Wraps timm's Block and adds adapter after MLP.
+    """
+    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=True,
+                 norm_layer=nn.LayerNorm, use_adapter=False, adapter_bottleneck=64):
+        super().__init__()
+        self.block = Block(dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, norm_layer=norm_layer)
+        self.use_adapter = use_adapter
+        if use_adapter:
+            self.adapter = Adapter(dim=dim, bottleneck=adapter_bottleneck)
+
+    def forward(self, x):
+        x = self.block(x)
+        if self.use_adapter:
+            x = self.adapter(x)
+        return x
+
+
 def get_2d_sincos_pos_embed(embed_dim, grid_size, cls_token=False):
     grid_h = np.arange(grid_size, dtype=np.float32)
     grid_w = np.arange(grid_size, dtype=np.float32)
@@ -44,34 +99,58 @@ def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
 
 class ConvStemPatchEmbed(nn.Module):
     """
-    Conv Stem:
-    256x256 -> 128 -> 64 -> 32，再用 stride=patch_reduction 到 patch grid
-    v2 里 patch_size=8，所以最终 token grid = 32x32
+    Conv Stem with flexible patch size support.
+
+    For patch_size=8:  256 -> 128 -> 64 -> 32 (3 stages, stride=2 each)
+    For patch_size=16: 256 -> 128 -> 64 -> 32 -> 16 (4 stages, stride=2 each)
     """
     def __init__(self, img_size=256, patch_size=8, in_chans=1, embed_dim=384):
         super().__init__()
-        assert patch_size == 8, "当前 ConvStemPatchEmbed 版本按 patch_size=8 设计"
 
-        self.stem = nn.Sequential(
-            nn.Conv2d(in_chans, 32, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(32),
-            nn.GELU(),
+        if patch_size == 8:
+            # 3-stage: 256 -> 128 -> 64 -> 32
+            self.stem = nn.Sequential(
+                nn.Conv2d(in_chans, 32, kernel_size=3, stride=2, padding=1),
+                nn.BatchNorm2d(32),
+                nn.GELU(),
 
-            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(64),
-            nn.GELU(),
+                nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
+                nn.BatchNorm2d(64),
+                nn.GELU(),
 
-            nn.Conv2d(64, embed_dim, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(embed_dim),
-            nn.GELU(),
-        )
+                nn.Conv2d(64, embed_dim, kernel_size=3, stride=2, padding=1),
+                nn.BatchNorm2d(embed_dim),
+                nn.GELU(),
+            )
+        elif patch_size == 16:
+            # 4-stage: 256 -> 128 -> 64 -> 32 -> 16
+            self.stem = nn.Sequential(
+                nn.Conv2d(in_chans, 32, kernel_size=3, stride=2, padding=1),
+                nn.BatchNorm2d(32),
+                nn.GELU(),
 
+                nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
+                nn.BatchNorm2d(64),
+                nn.GELU(),
+
+                nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
+                nn.BatchNorm2d(128),
+                nn.GELU(),
+
+                nn.Conv2d(128, embed_dim, kernel_size=3, stride=2, padding=1),
+                nn.BatchNorm2d(embed_dim),
+                nn.GELU(),
+            )
+        else:
+            raise ValueError(f"Unsupported patch_size: {patch_size}. Only 8 and 16 are supported.")
+
+        self.patch_size = patch_size
         self.grid_size = img_size // patch_size
         self.num_patches = self.grid_size * self.grid_size
         self.embed_dim = embed_dim
 
     def forward(self, x):
-        x = self.stem(x)                 # [B, C, 32, 32]
+        x = self.stem(x)  # [B, embed_dim, grid_size, grid_size]
         x = x.flatten(2).transpose(1, 2)  # [B, N, C]
         return x
 
@@ -93,6 +172,8 @@ class HybridMAEViT(nn.Module):
         norm_pix_loss=True,
         fg_mask_bias=0.6,
         mask_mode="foreground_aware",
+        use_adapter=False,
+        adapter_bottleneck=64,
     ):
         super().__init__()
 
@@ -102,6 +183,7 @@ class HybridMAEViT(nn.Module):
         self.norm_pix_loss = norm_pix_loss
         self.fg_mask_bias = fg_mask_bias
         self.mask_mode = mask_mode
+        self.use_adapter = use_adapter
 
         # encoder
         self.patch_embed = ConvStemPatchEmbed(
@@ -118,10 +200,19 @@ class HybridMAEViT(nn.Module):
             torch.zeros(1, num_patches + 1, embed_dim), requires_grad=False
         )
 
-        self.blocks = nn.ModuleList([
-            Block(embed_dim, num_heads, mlp_ratio, qkv_bias=True, norm_layer=norm_layer)
-            for _ in range(depth)
-        ])
+        # Use BlockWithAdapter if adapter is enabled
+        if use_adapter:
+            self.blocks = nn.ModuleList([
+                BlockWithAdapter(embed_dim, num_heads, mlp_ratio, qkv_bias=True,
+                               norm_layer=norm_layer, use_adapter=True,
+                               adapter_bottleneck=adapter_bottleneck)
+                for _ in range(depth)
+            ])
+        else:
+            self.blocks = nn.ModuleList([
+                Block(embed_dim, num_heads, mlp_ratio, qkv_bias=True, norm_layer=norm_layer)
+                for _ in range(depth)
+            ])
         self.norm = norm_layer(embed_dim)
 
         # decoder
@@ -138,6 +229,78 @@ class HybridMAEViT(nn.Module):
         self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size * patch_size * in_chans, bias=True)
 
         self.initialize_weights(grid_size)
+
+    def freeze_encoder(self, freeze_mode="full"):
+        """
+        Freeze encoder parameters for adapter tuning.
+
+        Args:
+            freeze_mode:
+                - "full": Freeze all encoder parameters (patch_embed + blocks + norm)
+                - "adapter_only": Freeze encoder but keep adapters trainable
+                - "none": Don't freeze anything
+        """
+        if freeze_mode == "none":
+            return
+
+        # Freeze patch embedding
+        for param in self.patch_embed.parameters():
+            param.requires_grad = False
+
+        # Freeze positional embeddings and cls token
+        self.pos_embed.requires_grad = False
+        self.cls_token.requires_grad = False
+
+        # Freeze encoder blocks
+        for block in self.blocks:
+            if self.use_adapter and freeze_mode == "adapter_only":
+                # Freeze transformer block but keep adapter trainable
+                if hasattr(block, 'block'):
+                    for param in block.block.parameters():
+                        param.requires_grad = False
+                    # Adapter remains trainable
+                else:
+                    for param in block.parameters():
+                        param.requires_grad = False
+            else:
+                # Freeze everything including adapters
+                for param in block.parameters():
+                    param.requires_grad = False
+
+        # Freeze encoder norm
+        for param in self.norm.parameters():
+            param.requires_grad = False
+
+        print(f"Encoder frozen with mode: {freeze_mode}")
+
+    def get_trainable_params(self):
+        """Return statistics about trainable parameters."""
+        total_params = sum(p.numel() for p in self.parameters())
+        trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+        encoder_params = sum(p.numel() for p in self.patch_embed.parameters()) + \
+                        sum(p.numel() for block in self.blocks for p in block.parameters()) + \
+                        sum(p.numel() for p in self.norm.parameters())
+
+        decoder_params = sum(p.numel() for p in self.decoder_embed.parameters()) + \
+                        sum(p.numel() for block in self.decoder_blocks for p in block.parameters()) + \
+                        sum(p.numel() for p in self.decoder_norm.parameters()) + \
+                        sum(p.numel() for p in self.decoder_pred.parameters())
+
+        adapter_params = 0
+        if self.use_adapter:
+            for block in self.blocks:
+                if hasattr(block, 'adapter'):
+                    adapter_params += sum(p.numel() for p in block.adapter.parameters())
+
+        return {
+            "total": total_params,
+            "trainable": trainable_params,
+            "encoder": encoder_params,
+            "decoder": decoder_params,
+            "adapter": adapter_params,
+            "trainable_ratio": trainable_params / total_params * 100
+        }
 
     def initialize_weights(self, grid_size):
         pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], grid_size, cls_token=True)
@@ -296,6 +459,8 @@ def hybrid_mae_vit_small_patch8(
     norm_pix_loss=True,
     fg_mask_bias=0.6,
     mask_mode="foreground_aware",
+    use_adapter=False,
+    adapter_bottleneck=64,
 ):
     model = HybridMAEViT(
         img_size=img_size,
@@ -311,5 +476,7 @@ def hybrid_mae_vit_small_patch8(
         norm_pix_loss=norm_pix_loss,
         fg_mask_bias=fg_mask_bias,
         mask_mode=mask_mode,
+        use_adapter=use_adapter,
+        adapter_bottleneck=adapter_bottleneck,
     )
     return model

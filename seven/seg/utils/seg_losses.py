@@ -60,6 +60,10 @@ def seg_loss(
     focal_tversky_gamma=1.33,
 ):
     """Configurable segmentation loss."""
+    if loss_mode == "dice_bce":
+        # Simple Dice + BCE (baseline)
+        bce = F.binary_cross_entropy_with_logits(pred_logit, target)
+        return lambda_dice * dice_loss(pred_logit, target) + lambda_bce * bce
     if loss_mode == "dice_focal":
         return lambda_dice * dice_loss(pred_logit, target) + lambda_bce * focal_loss(pred_logit, target)
     if loss_mode == "tversky":

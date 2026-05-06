@@ -137,3 +137,7 @@ class IVOCTSegDataset(Dataset):
             "mask": mask,
             "path": str(sample["image"])
         }
+
+    def get_patient_id(self, idx):
+        """获取指定索引样本的患者ID"""
+        return self.samples[idx]["patient"]
