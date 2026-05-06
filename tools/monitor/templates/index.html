@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IVOCT 分割训练监控</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle { color: #94a3b8; margin-bottom: 30px; }
+
+        /* 实验列表 */
+        .experiments-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        .experiment-card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        .experiment-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+        .experiment-card.active {
+            border-color: #667eea;
+            background: #2d3748;
+        }
+        .experiment-card.running {
+            border-color: #10b981;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { border-color: #10b981; }
+            50% { border-color: #34d399; }
+        }
+        .exp-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .exp-name { font-size: 16px; font-weight: 600; }
+        .exp-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-completed { background: #1e40af; color: #93c5fd; }
+        .status-running { background: #065f46; color: #6ee7b7; }
+        .status-error { background: #7f1d1d; color: #fca5a5; }
+        .exp-meta { font-size: 13px; color: #94a3b8; margin-bottom: 8px; }
+        .exp-flags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+        .exp-flag {
+            border: 1px solid #475569;
+            color: #cbd5e1;
+            border-radius: 6px;
+            padding: 3px 7px;
+            font-size: 11px;
+        }
+        .exp-flag.warning {
+            border-color: #f59e0b;
+            color: #fbbf24;
+        }
+        .exp-flag.danger {
+            border-color: #ef4444;
+            color: #fca5a5;
+        }
+        .exp-flag.good {
+            border-color: #10b981;
+            color: #6ee7b7;
+        }
+        .exp-dice {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+            margin-top: 8px;
+        }
+
+        /* 详情面板 */
+        .detail-panel {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 30px;
+            display: none;
+        }
+        .detail-panel.active { display: block; }
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .detail-title { font-size: 22px; font-weight: 600; }
+        .last-update { font-size: 13px; color: #94a3b8; }
+
+        /* 进度条 */
+        .progress-section { margin-bottom: 30px; }
+        .overall-progress {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .overall-progress-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        .overall-progress-title { font-size: 15px; font-weight: 700; }
+        .overall-progress-percent { color: #6ee7b7; font-size: 20px; font-weight: 800; }
+        .progress-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .progress-stat {
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        .progress-stat-label { color: #94a3b8; font-size: 12px; margin-bottom: 4px; }
+        .progress-stat-value { color: #e2e8f0; font-size: 14px; font-weight: 700; }
+        .fold-progress {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .fold-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .fold-name { font-weight: 600; }
+        .fold-status { font-size: 13px; color: #94a3b8; }
+        .progress-bar-container {
+            background: #334155;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.5s;
+        }
+        .progress-text { font-size: 12px; color: #94a3b8; }
+
+        /* 图表 */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .chart-container {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .chart-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        canvas { max-height: 300px; }
+
+        /* Fold结果表格 */
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #0f172a;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .results-table th {
+            background: #334155;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .results-table td {
+            padding: 12px;
+            border-top: 1px solid #334155;
+            font-size: 14px;
+        }
+        .metric-value { font-weight: 600; color: #667eea; }
+
+        .loading { text-align: center; padding: 40px; color: #94a3b8; }
+        .error { color: #f87171; padding: 20px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔬 IVOCT 分割训练监控</h1>
+        <p class="subtitle">实时追踪实验进度和性能指标</p>
+
+        <div id="experiments-list" class="experiments-grid">
+            <div class="loading">加载实验列表...</div>
+        </div>
+
+        <div id="detail-panel" class="detail-panel">
+            <!-- 动态内容 -->
+        </div>
+    </div>
+
+    <script>
+        let currentExperimentId = null;
+        let charts = {};
+        let refreshInterval = null;
+
+        function formatTime(value) {
+            if (!value) return '-';
+            const date = new Date(value);
+            return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN');
+        }
+
+        function historyLabel(source) {
+            if (!source) return '无历史曲线';
+            if (source === 'progress_tracker') return '原始进度';
+            if (source.startsWith('parsed')) return '日志解析';
+            return source;
+        }
+
+        function qualityLabel(quality) {
+            if (quality === 'verified') return '历史已校验';
+            if (quality === 'partial') return '历史部分可信';
+            if (quality === 'mismatch') return '历史错配';
+            return '无历史';
+        }
+
+        function qualityClass(quality) {
+            if (quality === 'verified') return 'good';
+            if (quality === 'mismatch') return 'danger';
+            if (quality === 'partial') return 'warning';
+            return '';
+        }
+
+        function formatDuration(seconds) {
+            if (seconds === null || seconds === undefined) return '-';
+            if (seconds <= 0) return '0 分钟';
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.round((seconds % 3600) / 60);
+            if (hours <= 0) return `${minutes} 分钟`;
+            if (minutes <= 0) return `${hours} 小时`;
+            return `${hours} 小时 ${minutes} 分钟`;
+        }
+
+        // 加载实验列表
+        async function loadExperiments() {
+            try {
+                const res = await fetch('/api/experiments');
+                const experiments = await res.json();
+
+                const container = document.getElementById('experiments-list');
+                container.innerHTML = experiments.map(exp => `
+                    <div class="experiment-card ${exp.status === 'running' ? 'running' : ''} ${exp.id === currentExperimentId ? 'active' : ''}"
+                         onclick="selectExperiment('${exp.id}')">
+                        <div class="exp-header">
+                            <div class="exp-name">${exp.name}</div>
+                            <div class="exp-status status-${exp.status}">
+                                ${exp.status === 'running' ? '🟢 运行中' : exp.status === 'completed' ? '✅ 已完成' : '❌ 错误'}
+                            </div>
+                        </div>
+                        ${exp.description ? `<div class="exp-meta">${exp.description}</div>` : ''}
+                        <div class="exp-meta">
+                            ${exp.strategy || exp.split_mode}
+                            ${exp.current_fold !== undefined ? ` · 当前 Fold ${exp.current_fold}` : ''}
+                        </div>
+                        ${exp.progress ? `<div class="exp-meta">进度: ${exp.progress.percent.toFixed(1)}% · ETA ${formatDuration(exp.progress.eta_seconds)}</div>` : ''}
+                        <div class="exp-flags">
+                            ${exp.is_partial ? `<span class="exp-flag warning">部分结果 ${exp.num_folds}/${exp.expected_folds}</span>` : ''}
+                            <span class="exp-flag ${qualityClass(exp.history_quality)}">${qualityLabel(exp.history_quality)}</span>
+                            ${exp.has_epoch_history ? `<span class="exp-flag">${historyLabel(exp.history_source)}</span>` : `<span class="exp-flag">无曲线</span>`}
+                        </div>
+                        <div class="exp-meta">实验时间: ${formatTime(exp.timestamp)}</div>
+                        ${exp.updated_at ? `<div class="exp-meta">文件更新: ${formatTime(exp.updated_at)}</div>` : ''}
+                        ${exp.mean_dice !== undefined ? `<div class="exp-dice">Dice: ${(exp.mean_dice * 100).toFixed(2)}%</div>` : ''}
+                    </div>
+                `).join('');
+            } catch (err) {
+                document.getElementById('experiments-list').innerHTML =
+                    `<div class="error">加载失败: ${err.message}</div>`;
+            }
+        }
+
+        // 选择实验
+        async function selectExperiment(experimentId) {
+            currentExperimentId = experimentId;
+            await loadExperiments(); // 刷新列表高亮
+            await loadExperimentDetail(experimentId);
+
+            // 清除旧的自动刷新
+            clearInterval(refreshInterval);
+
+            // 只对运行中的实验启动自动刷新
+            const res = await fetch(`/api/experiment/${experimentId}/realtime`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.status === 'running') {
+                    refreshInterval = setInterval(() => loadExperimentDetail(experimentId), 5000);
+                }
+            }
+        }
+
+        // 加载实验详情
+        async function loadExperimentDetail(experimentId) {
+            try {
+                // 先尝试获取实时数据（包括已完成但有epoch_history的）
+                const res = await fetch(`/api/experiment/${experimentId}/realtime`);
+                if (res.ok) {
+                    const data = await res.json();
+                    // 如果有chart_data，显示实时/历史曲线
+                    if (data.chart_data && data.chart_data.length > 0) {
+                        renderRealtimeExperiment(data);
+                        return;
+                    }
+                }
+
+                // 回退到已完成实验的静态视图
+                const res2 = await fetch(`/api/experiment/${experimentId}`);
+                const data = await res2.json();
+                renderCompletedExperiment(data);
+            } catch (err) {
+                document.getElementById('detail-panel').innerHTML =
+                    `<div class="error">加载详情失败: ${err.message}</div>`;
+            }
+        }
+
+        // 渲染实时实验
+        function renderRealtimeExperiment(data) {
+            const panel = document.getElementById('detail-panel');
+            panel.className = 'detail-panel active';
+
+            const folds = data.folds || [];
+            const chartData = data.chart_data || [];
+            const isRunning = data.status === 'running';
+            const quality = data.history_quality || (isRunning ? 'verified' : 'none');
+            const qualityNotes = data.history_quality_notes || [];
+            const progress = data.progress || null;
+
+            panel.innerHTML = `
+                <div class="detail-header">
+                    <div class="detail-title">${currentExperimentId}</div>
+                    <div class="last-update">
+                        ${isRunning ? '🟢 运行中 · ' : '✅ 已完成 · '}
+                        实验时间: ${formatTime(data.last_update)}
+                        ${data.updated_at ? ` · 文件更新: ${formatTime(data.updated_at)}` : ''}
+                        ${data.history_source ? ` · ${historyLabel(data.history_source)}` : ''}
+                    </div>
+                </div>
+
+                <div class="exp-flags" style="margin-bottom: 18px;">
+                    <span class="exp-flag ${qualityClass(quality)}">${qualityLabel(quality)}</span>
+                    ${qualityNotes.map(note => `<span class="exp-flag ${quality === 'mismatch' ? 'danger' : 'warning'}">${note}</span>`).join('')}
+                </div>
+
+                ${isRunning ? `
+                ${progress ? `
+                <div class="overall-progress">
+                    <div class="overall-progress-header">
+                        <div>
+                            <div class="overall-progress-title">整体进度</div>
+                            <div class="progress-text">Epoch ${progress.completed_epochs}/${progress.total_epochs}</div>
+                        </div>
+                        <div class="overall-progress-percent">${progress.percent.toFixed(1)}%</div>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" style="width: ${progress.percent}%"></div>
+                    </div>
+                    <div class="progress-stats">
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">已用时间</div>
+                            <div class="progress-stat-value">${formatDuration(progress.elapsed_seconds)}</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">预计剩余</div>
+                            <div class="progress-stat-value">${formatDuration(progress.eta_seconds)}</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">预计完成</div>
+                            <div class="progress-stat-value">${formatTime(progress.eta_at)}</div>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+                <div class="progress-section">
+                    <h3 style="margin-bottom: 15px;">训练进度</h3>
+                    ${folds.map(fold => {
+                        const progress = fold.total_epochs > 0 ? (fold.current_epoch / fold.total_epochs * 100) : 0;
+                        return `
+                            <div class="fold-progress">
+                                <div class="fold-header">
+                                    <div class="fold-name">Fold ${fold.fold}</div>
+                                    <div class="fold-status">
+                                        ${fold.status === 'running' ? '🟢 运行中' : '✅ 已完成'}
+                                        · Best Dice: ${(fold.best_dice * 100).toFixed(2)}%
+                                    </div>
+                                </div>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar" style="width: ${progress}%"></div>
+                                </div>
+                                <div class="progress-text">
+                                    Epoch ${fold.current_epoch}/${fold.total_epochs}
+                                </div>
+                                <div class="progress-text" style="margin-top: 5px;">
+                                    <strong>验证集:</strong> ${fold.val_patients.join(', ')}
+                                </div>
+                                <div class="progress-text">
+                                    <strong>训练集:</strong> ${fold.train_patients.join(', ')}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                ` : ''}
+
+                ${isRunning ? `
+                <div class="chart-container" style="margin-bottom: 30px;">
+                    <div class="chart-title">实时验证 Dice</div>
+                    <canvas id="realtimeChart"></canvas>
+                </div>
+                ` : `
+                <div class="charts-grid">
+                    <div class="chart-container">
+                        <div class="chart-title">训练损失 (Train Loss)</div>
+                        <canvas id="lossChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-title">验证Dice系数 (Val Dice)</div>
+                        <canvas id="diceChart"></canvas>
+                    </div>
+                </div>
+                `}
+
+                ${!isRunning ? `
+                <div class="charts-grid" style="margin-top: 20px;">
+                    <div class="chart-container">
+                        <div class="chart-title">各Fold Dice对比</div>
+                        <canvas id="foldDiceChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-title">各Fold指标对比</div>
+                        <canvas id="foldMetricsChart"></canvas>
+                    </div>
+                </div>
+                ` : ''}
+
+                ${!isRunning ? `
+                <table class="results-table" style="margin-top: 30px;">
+                    <thead>
+                        <tr>
+                            <th>Fold</th>
+                            <th>训练患者</th>
+                            <th>验证患者</th>
+                            <th>Best Dice</th>
+                            <th>Best Epoch</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${(data.fold_results || folds).map(fold => `
+                            <tr>
+                                <td><strong>Fold ${fold.fold}</strong></td>
+                                <td style="font-size: 12px;">${fold.train_patients ? fold.train_patients.join(', ') : '-'}</td>
+                                <td style="font-size: 12px;">${fold.val_patients ? fold.val_patients.join(', ') : '-'}</td>
+                                <td class="metric-value">${(fold.best_dice * 100).toFixed(2)}%</td>
+                                <td>${fold.best_epoch || '-'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                ` : ''}
+            `;
+
+            if (isRunning) {
+                renderRealtimeChart(chartData);
+            } else {
+                renderCharts(chartData);
+            }
+
+            // 如果是已完成实验，也绘制对比图表
+            if (!isRunning && folds.length > 0) {
+                // 如果有fold_results（包含完整metrics），使用它；否则使用folds
+                const foldResultsForChart = data.fold_results || folds;
+                renderCompletedCharts(foldResultsForChart);
+            }
+        }
+
+        function downsampleSeries(data, maxPoints = 50) {
+            if (data.length <= maxPoints) return data;
+            const result = [data[0]];
+            const step = Math.ceil((data.length - 2) / (maxPoints - 2));
+            for (let i = step; i < data.length - 1; i += step) {
+                result.push(data[i]);
+            }
+            result.push(data[data.length - 1]);
+            return result;
+        }
+
+        function renderRealtimeChart(chartData) {
+            Object.values(charts).forEach(chart => chart.destroy());
+            charts = {};
+
+            const foldGroups = {};
+            chartData.forEach(d => {
+                if (!foldGroups[d.fold]) foldGroups[d.fold] = [];
+                foldGroups[d.fold].push(d);
+            });
+
+            const colors = ['#6ee7b7', '#f59e0b', '#93c5fd', '#fca5a5', '#c4b5fd'];
+            const realtimeCtx = document.getElementById('realtimeChart');
+            if (!realtimeCtx) return;
+
+            charts.realtime = new Chart(realtimeCtx, {
+                type: 'line',
+                data: {
+                    datasets: Object.entries(foldGroups).map(([fold, data], idx) => {
+                        const sampled = downsampleSeries(data, 50);
+                        return {
+                            label: `Fold ${fold}`,
+                            data: sampled.map(d => ({x: d.epoch, y: d.val_dice})),
+                            borderColor: colors[idx % colors.length],
+                            backgroundColor: colors[idx % colors.length] + '22',
+                            tension: 0.25,
+                            pointRadius: sampled.map(d => d.is_best ? 5 : 2),
+                            pointBackgroundColor: sampled.map(d => d.is_best ? '#fbbf24' : colors[idx % colors.length])
+                        };
+                    })
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: { legend: { labels: { color: '#e2e8f0' } } },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            title: { display: true, text: 'Epoch', color: '#94a3b8' },
+                            ticks: { color: '#94a3b8', stepSize: 10 },
+                            grid: { color: '#334155' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Val Dice', color: '#94a3b8' },
+                            ticks: {
+                                color: '#94a3b8',
+                                callback: (value) => (value * 100).toFixed(0) + '%'
+                            },
+                            grid: { color: '#334155' },
+                            min: 0,
+                            max: 1
+                        }
+                    }
+                }
+            });
+        }
+
+        // 渲染已完成实验
+        function renderCompletedExperiment(data) {
+            const panel = document.getElementById('detail-panel');
+            panel.className = 'detail-panel active';
+
+            const foldResults = data.fold_results || [];
+            const quality = data.history_quality || 'none';
+            const qualityNotes = data.history_quality_notes || [];
+
+            panel.innerHTML = `
+                <div class="detail-header">
+                    <div class="detail-title">${currentExperimentId}</div>
+                    <div class="last-update">
+                        Mean Dice: <span style="color: #667eea; font-size: 20px; font-weight: 700;">
+                            ${(data.mean_dice * 100).toFixed(2)}%
+                        </span>
+                        ${data.std_dice ? ` ± ${(data.std_dice * 100).toFixed(2)}%` : ''}
+                    </div>
+                </div>
+
+                <div class="exp-flags" style="margin-bottom: 18px;">
+                    <span class="exp-flag ${qualityClass(quality)}">${qualityLabel(quality)}</span>
+                    ${qualityNotes.map(note => `<span class="exp-flag ${quality === 'mismatch' ? 'danger' : 'warning'}">${note}</span>`).join('')}
+                </div>
+
+                <div class="charts-grid" style="margin-bottom: 30px;">
+                    <div class="chart-container">
+                        <div class="chart-title">各Fold Dice对比</div>
+                        <canvas id="foldDiceChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-title">各Fold指标对比</div>
+                        <canvas id="foldMetricsChart"></canvas>
+                    </div>
+                </div>
+
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>Fold</th>
+                            <th>训练患者</th>
+                            <th>验证患者</th>
+                            <th>Best Dice</th>
+                            <th>IoU</th>
+                            <th>Sensitivity</th>
+                            <th>Specificity</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${foldResults.map(fold => `
+                            <tr>
+                                <td><strong>Fold ${fold.fold}</strong></td>
+                                <td style="font-size: 12px;">${fold.train_patients.join(', ')}</td>
+                                <td style="font-size: 12px;">${fold.val_patients.join(', ')}</td>
+                                <td class="metric-value">${(fold.best_dice * 100).toFixed(2)}%</td>
+                                <td>${fold.metrics?.iou_mean ? (fold.metrics.iou_mean * 100).toFixed(2) + '%' : '-'}</td>
+                                <td>${fold.metrics?.sensitivity_mean ? (fold.metrics.sensitivity_mean * 100).toFixed(2) + '%' : '-'}</td>
+                                <td>${fold.metrics?.specificity_mean ? (fold.metrics.specificity_mean * 100).toFixed(2) + '%' : '-'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            // 绘制已完成实验的对比图表
+            renderCompletedCharts(foldResults);
+        }
+
+        // 绘制已完成实验的图表
+        function renderCompletedCharts(foldResults) {
+            // 只销毁对比图表，保留折线图
+            if (charts.foldDice) charts.foldDice.destroy();
+            if (charts.foldMetrics) charts.foldMetrics.destroy();
+
+            const colors = ['#667eea', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+
+            // Dice柱状图
+            const diceCtx = document.getElementById('foldDiceChart');
+            if (diceCtx) {
+                charts.foldDice = new Chart(diceCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: foldResults.map(f => `Fold ${f.fold}`),
+                        datasets: [{
+                            label: 'Best Dice',
+                            data: foldResults.map(f => f.best_dice),
+                            backgroundColor: colors.slice(0, foldResults.length),
+                            borderColor: colors.slice(0, foldResults.length),
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => `Dice: ${(context.parsed.y * 100).toFixed(2)}%`
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                            y: {
+                                title: { display: true, text: 'Dice', color: '#94a3b8' },
+                                ticks: {
+                                    color: '#94a3b8',
+                                    callback: (value) => (value * 100).toFixed(0) + '%'
+                                },
+                                grid: { color: '#334155' },
+                                min: 0,
+                                max: 1
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 多指标对比雷达图
+            const metricsCtx = document.getElementById('foldMetricsChart');
+            if (metricsCtx) {
+                const datasets = foldResults.map((fold, idx) => ({
+                    label: `Fold ${fold.fold}`,
+                    data: [
+                        fold.best_dice || 0,
+                        fold.metrics?.iou_mean || 0,
+                        fold.metrics?.sensitivity_mean || 0,
+                        fold.metrics?.specificity_mean || 0
+                    ],
+                    borderColor: colors[idx % colors.length],
+                    backgroundColor: colors[idx % colors.length] + '30',
+                    pointBackgroundColor: colors[idx % colors.length],
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: colors[idx % colors.length]
+                }));
+
+                charts.foldMetrics = new Chart(metricsCtx, {
+                    type: 'radar',
+                    data: {
+                        labels: ['Dice', 'IoU', 'Sensitivity', 'Specificity'],
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: { color: '#e2e8f0' },
+                                position: 'bottom'
+                            }
+                        },
+                        scales: {
+                            r: {
+                                min: 0,
+                                max: 1,
+                                ticks: {
+                                    color: '#94a3b8',
+                                    backdropColor: 'transparent',
+                                    callback: (value) => (value * 100).toFixed(0) + '%'
+                                },
+                                grid: { color: '#334155' },
+                                pointLabels: { color: '#94a3b8' }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // 绘制图表
+        function renderCharts(chartData) {
+            Object.values(charts).forEach(chart => chart.destroy());
+            charts = {};
+
+            const foldGroups = {};
+            chartData.forEach(d => {
+                if (!foldGroups[d.fold]) foldGroups[d.fold] = [];
+                foldGroups[d.fold].push(d);
+            });
+
+            const colors = ['#667eea', '#f59e0b', '#10b981', '#ef4444'];
+
+            const lossCtx = document.getElementById('lossChart');
+            if (lossCtx) {
+                charts.loss = new Chart(lossCtx, {
+                    type: 'line',
+                    data: {
+                        datasets: Object.entries(foldGroups).map(([fold, data], idx) => ({
+                            label: `Fold ${fold}`,
+                            data: data.map(d => ({x: d.epoch, y: d.train_loss})),
+                            borderColor: colors[idx % colors.length],
+                            backgroundColor: colors[idx % colors.length] + '20',
+                            tension: 0.3
+                        }))
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { labels: { color: '#e2e8f0' } } },
+                        scales: {
+                            x: {
+                                type: 'linear',
+                                title: { display: true, text: 'Epoch', color: '#94a3b8' },
+                                ticks: { color: '#94a3b8', stepSize: 10 },
+                                grid: { color: '#334155' }
+                            },
+                            y: { title: { display: true, text: 'Loss', color: '#94a3b8' }, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+                        }
+                    }
+                });
+            }
+
+            const diceCtx = document.getElementById('diceChart');
+            if (diceCtx) {
+                charts.dice = new Chart(diceCtx, {
+                    type: 'line',
+                    data: {
+                        datasets: Object.entries(foldGroups).map(([fold, data], idx) => ({
+                            label: `Fold ${fold}`,
+                            data: data.map(d => ({x: d.epoch, y: d.val_dice})),
+                            borderColor: colors[idx % colors.length],
+                            backgroundColor: colors[idx % colors.length] + '20',
+                            tension: 0.3,
+                            pointBackgroundColor: data.map(d => d.is_best ? '#fbbf24' : colors[idx % colors.length]),
+                            pointRadius: data.map(d => d.is_best ? 6 : 3)
+                        }))
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { labels: { color: '#e2e8f0' } } },
+                        scales: {
+                            x: {
+                                type: 'linear',
+                                title: { display: true, text: 'Epoch', color: '#94a3b8' },
+                                ticks: { color: '#94a3b8', stepSize: 10 },
+                                grid: { color: '#334155' }
+                            },
+                            y: { title: { display: true, text: 'Dice', color: '#94a3b8' }, ticks: { color: '#94a3b8' }, grid: { color: '#334155' }, min: 0, max: 1 }
+                        }
+                    }
+                });
+            }
+        }
+
+        loadExperiments();
+        setInterval(loadExperiments, 10000);
+    </script>
+</body>
+</html>

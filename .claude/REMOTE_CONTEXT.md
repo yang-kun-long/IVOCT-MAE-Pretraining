@@ -106,6 +106,37 @@ Use explicit Python on the server when needed:
 /root/miniconda3/bin/python seven/seg/train_clean_weighted_4fold_v2.py
 ```
 
+## Monitor Deployment
+
+The training monitor source is versioned in:
+
+```text
+tools/monitor/
+```
+
+The server deployment found on 2026-05-06 lives at:
+
+```text
+/root/monitor
+```
+
+It reads training progress/results from:
+
+```text
+/root/CN_seg/seven/seg/logs/
+```
+
+Default monitor port in code: `6006`. On 2026-05-06, port `6006` was not
+listening; port `6007` was TensorBoard. Read `MONITORING_CONTRACT.md` before
+adding a new training script that should appear in the monitor.
+
+To run the monitor manually on the server:
+
+```bash
+cd /root/monitor
+/root/miniconda3/bin/python app.py
+```
+
 Remote helper environment variables on the local machine:
 
 - `REMOTE_HOST`

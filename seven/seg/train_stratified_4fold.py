@@ -11,6 +11,7 @@ sys.path.insert(1, str(Path(__file__).parent.parent))
 import config_seg as config
 from train_seg import train_fold
 from utils.progress_tracker import ProgressTracker
+from utils.monitoring import write_final_result
 import json
 from datetime import datetime
 import torch
@@ -145,28 +146,15 @@ def main():
         # Mark experiment as completed
         tracker.finish_experiment(mean_dice=mean_dice, all_results=all_results)
 
-        # Copy epoch history from progress file to final results
-        progress_file = config.SEG_LOG_DIR / f"progress_{experiment_id}.json"
-        if progress_file.exists():
-            with open(progress_file, 'r') as f:
-                progress_data = json.load(f)
-
-            # Add epoch history to final results
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            final_results = {
-                "split_mode": "stratified_4fold",
-                "timestamp": timestamp,
-                "experiment_id": experiment_id,
-                "mean_dice": mean_dice,
-                "fold_results": all_results,
-                "epoch_history": progress_data.get("folds", [])  # Include full epoch data
-            }
-
-            output_file = config.SEG_LOG_DIR / f"results_stratified_{timestamp}.json"
-            with open(output_file, 'w') as f:
-                json.dump(final_results, f, indent=2)
-
-            print(f"\n✓ Final results with epoch history saved to {output_file}")
+        output_file = write_final_result(
+            logs_dir=config.SEG_LOG_DIR,
+            result_prefix="results_stratified",
+            split_mode="stratified_4fold",
+            experiment_id=experiment_id,
+            mean_dice=mean_dice,
+            fold_results=all_results,
+        )
+        print(f"\n✓ Final results with epoch history saved to {output_file}")
 
         print(f"\n✓ Experiment completed. Progress saved to progress_{experiment_id}.json")
 

@@ -12,6 +12,8 @@ The current codebase is small, but several documents describe an intended or his
 
 - `CLAUDE.md`: main Claude-facing repository guidance
 - `.claude/REMOTE_CONTEXT.md`: remote server path, SSH helper usage, sync state, and server environment notes
+- `MONITORING_CONTRACT.md`: progress/results JSON contract for the training monitor
+- `tools/monitor/`: Flask monitor source imported from the server deployment
 - `DEPLOY.md`: segmentation training/evaluation quick start
 - `IMPROVEMENTS.md`: version history and intended MAE improvements
 - `SEGMENTATION_NOTES.md`: the most useful bug log for the segmentation branch

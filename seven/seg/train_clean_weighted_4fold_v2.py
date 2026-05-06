@@ -24,7 +24,7 @@ sys.path.insert(1, str(Path(__file__).parent.parent))
 import config_seg as config
 from datasets import IVOCTSegDataset
 from models import MAESegmenter
-from utils import compute_metrics, aggregate_metrics, save_seg_visualization
+from utils import compute_metrics, aggregate_metrics, save_seg_visualization, write_final_result
 from utils.progress_tracker import ProgressTracker
 
 
@@ -585,22 +585,20 @@ def main():
         std_dice = float(np.std([r["best_dice"] for r in results]))
         tracker.finish_experiment(mean_dice, results)
 
-        progress_file = config.SEG_LOG_DIR / f"progress_{experiment_id}.json"
-        progress_data = json.loads(progress_file.read_text(encoding="utf-8")) if progress_file.exists() else {}
-        final = {
-            "split_mode": "clean_weighted_4fold_v2",
-            "timestamp": datetime.now().strftime("%Y%m%d_%H%M%S"),
-            "experiment_id": experiment_id,
-            "excluded_patients": EXCLUDED_PATIENTS,
-            "duplicate_groups": DUPLICATE_GROUPS,
-            "mean_dice": mean_dice,
-            "std_dice": std_dice,
-            "fold_results": json_safe(results),
-            "epoch_history": progress_data.get("folds", []),
-            "audit_file": str(audit_path),
-        }
-        output_file = config.SEG_LOG_DIR / f"results_clean_weighted_v2_{final['timestamp']}.json"
-        output_file.write_text(json.dumps(final, indent=2), encoding="utf-8")
+        output_file = write_final_result(
+            logs_dir=config.SEG_LOG_DIR,
+            result_prefix="results_clean_weighted_v2",
+            split_mode="clean_weighted_4fold_v2",
+            experiment_id=experiment_id,
+            mean_dice=mean_dice,
+            std_dice=std_dice,
+            fold_results=results,
+            extra={
+                "excluded_patients": EXCLUDED_PATIENTS,
+                "duplicate_groups": DUPLICATE_GROUPS,
+                "audit_file": str(audit_path),
+            },
+        )
 
         print("\n" + "=" * 80)
         print(f"Mean Dice: {mean_dice:.4f} +/- {std_dice:.4f}")
