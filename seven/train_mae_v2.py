@@ -18,7 +18,6 @@ from engine.pretrain_engine_v2 import train_one_epoch_v2
 from utils.misc import set_seed, save_checkpoint
 from utils.lr_sched import adjust_learning_rate
 from utils.visualization_v2 import save_reconstruction_four_panel
-from utils.notifier import Notifier
 
 
 def setup_logger():
@@ -60,22 +59,13 @@ def main():
     logger.info(f"Log file: {log_file}")
     logger.info("=" * 80)
 
-    # 初始化通知系统
-    notifier = Notifier()
-    if notifier.enabled:
-        logger.info("Notification system enabled (Server酱)")
-    else:
-        logger.info("Notification system disabled (set SERVERCHAN_KEY to enable)")
-
     set_seed(config.SEED)
     logger.info(f"Random seed: {config.SEED}")
 
     device = torch.device(config.DEVICE if torch.cuda.is_available() else "cpu")
     logger.info(f"Device: {device}")
-    gpu_name = "N/A"
     if torch.cuda.is_available():
-        gpu_name = torch.cuda.get_device_name(0)
-        logger.info(f"GPU: {gpu_name}")
+        logger.info(f"GPU: {torch.cuda.get_device_name(0)}")
         logger.info(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
 
     # 记录配置
@@ -168,16 +158,6 @@ def main():
         logger.info(f"  Training {param_stats['trainable']:,} / {param_stats['total']:,} params ({param_stats['trainable_ratio']:.2f}%)")
     logger.info("=" * 80)
 
-    # Send training started notification
-    notifier.training_started({
-        'dataset_size': len(dataset),
-        'batch_size': config.BATCH_SIZE,
-        'epochs': config.EPOCHS,
-        'lr': config.BASE_LR,
-        'mode': 'Adapter Tuning' if config.USE_ADAPTER else 'Full Training',
-        'gpu': gpu_name
-    })
-
     for epoch in range(1, config.EPOCHS + 1):
         try:
             lr = adjust_learning_rate(
@@ -222,9 +202,6 @@ def main():
             }
             log_history.append(log_item)
 
-            # Send epoch notification (every 10 epochs)
-            notifier.epoch_completed(epoch, config.EPOCHS, metrics)
-
             if epoch % config.SAVE_FREQ == 0 or epoch == config.EPOCHS:
                 ckpt_path = config.CHECKPOINT_DIR / f"mae_v2_epoch_{epoch}.pth"
                 save_checkpoint({
@@ -247,7 +224,6 @@ def main():
                     "metrics": metrics
                 }, best_path)
                 logger.info(f"New best model saved: {best_path} (loss={best_loss:.6f})")
-                notifier.checkpoint_saved(epoch, best_loss, is_best=True)
 
             if epoch % config.VIS_FREQ == 0 or epoch == 1:
                 model.eval()
@@ -265,7 +241,6 @@ def main():
 
         except Exception as e:
             logger.error(f"Error in epoch {epoch}: {e}", exc_info=True)
-            notifier.training_error(epoch, str(e))
             raise
 
     # Training completed
@@ -278,9 +253,6 @@ def main():
     logger.info("Training completed successfully")
     logger.info(f"Total time: {time_str}")
     logger.info("=" * 80)
-
-    # Send completion notification
-    notifier.training_completed(config.EPOCHS, best_loss, time_str)
 
     # 导出 encoder-only 权重
     try:

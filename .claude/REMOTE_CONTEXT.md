@@ -97,8 +97,6 @@ python: not found in PATH
 python3: not found in PATH
 usable Python: /root/miniconda3/bin/python
 CUDA_VISIBLE_DEVICES: unset/empty
-AUTODL_TOKEN: unset
-SERVERCHAN_KEY: unset
 ```
 
 Use explicit Python on the server when needed:
@@ -107,11 +105,6 @@ Use explicit Python on the server when needed:
 /root/miniconda3/bin/python -m pytest
 /root/miniconda3/bin/python seven/seg/train_clean_weighted_4fold_v2.py
 ```
-
-Notification-related environment variables:
-
-- `AUTODL_TOKEN`: used by `seven/utils/notifier.py` for AutoDL notifications.
-- `SERVERCHAN_KEY`: alternative ServerChan notification key.
 
 Remote helper environment variables on the local machine:
 
@@ -135,4 +128,3 @@ python scripts/remote_ops.py exec "cd /root/CN_seg && git status --short --ignor
 ```
 
 Do not run destructive cleanup against `/root/CN_seg` unless the target paths are explicitly reviewed. Checkpoints and result directories are intentionally preserved.
-

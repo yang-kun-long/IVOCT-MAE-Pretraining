@@ -1,38 +1,12 @@
 # 🚀 快速启动指南
 
-## 准备工作（5 分钟）
+## 准备工作（2 分钟）
 
-### 1. 获取 AutoDL Token（可选但推荐）
-
-访问：https://www.autodl.com/console/account/info
-
-复制"开发者 Token"，用于接收训练通知到微信。
-
-### 2. SSH 连接到服务器
+### 1. SSH 连接到服务器
 
 ```bash
 ssh -p 48198 root@connect.bjb2.seetacloud.com
-# 密码：k3Kf0Yw3CtZI
 ```
-
-### 3. 设置通知 Token（可选）
-
-```bash
-export AUTODL_TOKEN="your_token_here"
-
-# 或者永久保存
-echo 'export AUTODL_TOKEN="your_token_here"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-### 4. 测试通知（可选）
-
-```bash
-cd /root/CN_seg/seven
-python -c "from utils.notifier import Notifier; n = Notifier(); n.send('🧪 Test', 'Ready to train!', force=True) if n.enabled else print('Notifications disabled')"
-```
-
-如果设置正确，你会在微信收到测试消息。
 
 ---
 
@@ -48,7 +22,7 @@ bash start_training.sh
 脚本会自动：
 - ✅ 激活 conda 环境
 - ✅ 检查 Python 和 PyTorch
-- ✅ 安装依赖（tqdm, requests）
+- ✅ 安装依赖（tqdm）
 - ✅ 测试适配器实现
 - ✅ 确认后启动训练
 
@@ -118,17 +92,6 @@ ls -lh /root/CN_seg/seven/checkpoints_v2/
 # 查看可视化
 ls -lh /root/CN_seg/seven/recon_vis_v2/
 ```
-
-### 微信通知（如果已配置）
-
-你会在以下时机收到通知：
-- 🚀 训练开始
-- 📊 每 20 epochs（Epoch 20, 40, 60...）
-- ⭐ 每次保存最佳模型
-- 🎉 训练完成
-- ❌ 训练错误
-
----
 
 ## 训练输出
 
@@ -238,20 +201,7 @@ htop        # 确认 CPU 和内存
 - DataLoader workers 太少：增加 `NUM_WORKERS`
 - 磁盘 I/O 慢：检查数据集位置
 
-### 问题 3：通知不工作
-
-**检查：**
-```bash
-echo $AUTODL_TOKEN  # 确认 token 已设置
-```
-
-**测试：**
-```bash
-cd /root/CN_seg/seven
-python -c "from utils.notifier import Notifier; Notifier().send('Test', 'Hello', force=True)"
-```
-
-### 问题 4：训练中断
+### 问题 3：训练中断
 
 **检查日志：**
 ```bash
@@ -318,7 +268,6 @@ tail -100 /root/CN_seg/seven/logs_v2/train_*.log
 
 - **适配器微调**：`ADAPTER_TUNING.md`
 - **配置对比**：`CONFIG_COMPARISON.md`
-- **通知设置**：`NOTIFICATION_SETUP.md`
 - **实现总结**：`IMPLEMENTATION_SUMMARY.md`
 
 ---

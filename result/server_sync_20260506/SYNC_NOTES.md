@@ -13,7 +13,7 @@ Source server path: `/root/CN_seg`
 
 - Adapter tuning support in `seven/models/mae_hybrid_v2.py` and `seven/train_mae_v2.py`
 - Segmentation adapter loading, configurable patch size, baseline `dice_bce`, and clean weighted 4-fold scripts
-- Progress tracking, notifier helpers, diagnostics, experiment docs, and script entry points
+- Progress tracking, diagnostics, experiment docs, and script entry points
 - Latest small JSON result summaries copied into this directory
 
 ## Latest Server Results
