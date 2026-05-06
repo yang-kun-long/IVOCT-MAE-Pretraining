@@ -23,8 +23,7 @@ sys.path.insert(1, str(Path(__file__).parent.parent))
 import config_seg as config
 from datasets import IVOCTSegDataset
 from models import MAESegmenter
-from utils import compute_metrics, aggregate_metrics, save_seg_visualization, write_final_result
-from utils.progress_tracker import ProgressTracker
+from utils import MonitorRun, compute_metrics, aggregate_metrics, save_seg_visualization
 
 
 EXCLUDED_PATIENTS = ["P011"]
@@ -437,8 +436,8 @@ def main():
     sample_weights = compute_sample_weights(patient_stats, patients)
 
     experiment_id = f"clean_weighted_4fold_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    tracker = ProgressTracker(experiment_id=experiment_id, logs_dir=config.SEG_LOG_DIR)
-    tracker.plan_folds([
+    monitor = MonitorRun(experiment_id=experiment_id, logs_dir=config.SEG_LOG_DIR)
+    monitor.plan_folds([
         {
             "fold": fold["fold"],
             "total_epochs": args.epochs or config.EPOCHS,
@@ -454,7 +453,7 @@ def main():
     print("=" * 80)
     print(f"Experiment ID: {experiment_id}")
     print(f"Audit: {audit_path}")
-    print(f"Progress: {config.SEG_LOG_DIR / f'progress_{experiment_id}.json'}")
+    print(f"Progress: {monitor.progress_file}")
     print(f"Excluded patients: {EXCLUDED_PATIENTS}")
     print(f"Duplicate groups: {DUPLICATE_GROUPS}")
     for fold in folds:
@@ -470,17 +469,14 @@ def main():
     results = []
     try:
         for fold in folds:
-            results.append(train_fold(fold, device, patient_stats, sample_weights, tracker, max_epochs=args.epochs))
+            results.append(train_fold(fold, device, patient_stats, sample_weights, monitor, max_epochs=args.epochs))
 
         mean_dice = float(np.mean([r["best_dice"] for r in results]))
         std_dice = float(np.std([r["best_dice"] for r in results]))
-        tracker.finish_experiment(mean_dice, results)
 
-        output_file = write_final_result(
-            logs_dir=config.SEG_LOG_DIR,
+        output_file = monitor.finish(
             result_prefix="results_clean_weighted",
             split_mode="clean_weighted_4fold",
-            experiment_id=experiment_id,
             mean_dice=mean_dice,
             std_dice=std_dice,
             fold_results=results,
@@ -495,7 +491,7 @@ def main():
         print(f"Mean Dice: {mean_dice:.4f} +/- {std_dice:.4f}")
         print(f"Results saved to: {output_file}")
     except Exception as exc:
-        tracker.mark_error(str(exc))
+        monitor.mark_error(exc)
         print(f"\nTraining failed: {exc}")
         raise
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from seven.seg.utils.monitoring import write_final_result
+from seven.seg.utils.monitoring import MonitorRun, write_final_result
 
 
 class MonitoringHelperTest(unittest.TestCase):
@@ -42,6 +42,34 @@ class MonitoringHelperTest(unittest.TestCase):
             self.assertEqual(data["epoch_history_source"], "progress_tracker")
             self.assertEqual(data["fold_results"][0]["fold"], 0)
             self.assertEqual(data["excluded_patients"], ["P011"])
+
+    def test_monitor_run_wraps_progress_and_final_result(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            monitor = MonitorRun("exp2", Path(tmp))
+            monitor.plan_folds([
+                {
+                    "fold": 0,
+                    "total_epochs": 2,
+                    "train_patients": ["P001"],
+                    "val_patients": ["P002"],
+                }
+            ])
+            monitor.start_fold(0, 2, ["P001"], ["P002"])
+            monitor.update_epoch(0, 1, train_loss=0.5, val_dice=0.4, val_iou=0.25, is_best=True)
+            monitor.finish_fold(0, 0.4, {"dice_mean": np.float32(0.4)})
+
+            output = monitor.finish(
+                result_prefix="results_facade",
+                split_mode="facade",
+                mean_dice=0.4,
+                fold_results=[{"fold": 0, "best_dice": 0.4}],
+                std_dice=0.0,
+            )
+
+            progress = json.loads(monitor.progress_file.read_text(encoding="utf-8"))
+            result = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(progress["status"], "completed")
+            self.assertEqual(result["epoch_history"][0]["epochs"][0]["val_iou"], 0.25)
 
 
 if __name__ == "__main__":

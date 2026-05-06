@@ -9,6 +9,8 @@ from typing import Any
 
 import numpy as np
 
+from .progress_tracker import ProgressTracker
+
 
 def json_safe(value: Any) -> Any:
     """Convert common NumPy containers/scalars into JSON-serializable values."""
@@ -74,3 +76,67 @@ def write_final_result(
     output_file = logs_dir / f"{result_prefix}_{timestamp}.json"
     output_file.write_text(json.dumps(final, indent=2), encoding="utf-8")
     return output_file
+
+
+class MonitorRun:
+    """Facade for the progress/result files consumed by the monitor UI."""
+
+    def __init__(self, experiment_id: str, logs_dir: Path):
+        self.experiment_id = experiment_id
+        self.logs_dir = Path(logs_dir)
+        self.tracker = ProgressTracker(experiment_id=experiment_id, logs_dir=self.logs_dir)
+
+    @property
+    def progress_file(self) -> Path:
+        return self.logs_dir / f"progress_{self.experiment_id}.json"
+
+    def plan_folds(self, folds: list[dict[str, Any]]) -> None:
+        self.tracker.plan_folds(folds)
+
+    def start_fold(
+        self,
+        fold_idx: int,
+        total_epochs: int,
+        train_patients: list[str],
+        val_patients: list[str],
+    ) -> None:
+        self.tracker.start_fold(fold_idx, total_epochs, train_patients, val_patients)
+
+    def update_epoch(
+        self,
+        fold_idx: int,
+        epoch: int,
+        train_loss: float,
+        val_dice: float,
+        val_iou: float,
+        is_best: bool = False,
+    ) -> None:
+        self.tracker.update_epoch(fold_idx, epoch, train_loss, val_dice, val_iou, is_best)
+
+    def finish_fold(self, fold_idx: int, best_dice: float, metrics: dict[str, Any]) -> None:
+        self.tracker.finish_fold(fold_idx, float(best_dice), json_safe(metrics))
+
+    def mark_error(self, error: Exception | str) -> None:
+        self.tracker.mark_error(str(error))
+
+    def finish(
+        self,
+        *,
+        result_prefix: str,
+        split_mode: str,
+        mean_dice: float,
+        fold_results: list[dict[str, Any]],
+        std_dice: float | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> Path:
+        self.tracker.finish_experiment(float(mean_dice), json_safe(fold_results))
+        return write_final_result(
+            logs_dir=self.logs_dir,
+            result_prefix=result_prefix,
+            split_mode=split_mode,
+            experiment_id=self.experiment_id,
+            mean_dice=mean_dice,
+            std_dice=std_dice,
+            fold_results=fold_results,
+            extra=extra,
+        )

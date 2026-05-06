@@ -115,8 +115,9 @@ Required epoch fields:
 
 ## Result JSON
 
-Use `seven.seg.utils.monitoring.write_final_result(...)` instead of hand-writing
-completed result JSON.
+Use `seven.seg.utils.monitoring.MonitorRun` for new training scripts. It wraps
+`ProgressTracker` and `write_final_result(...)` so scripts do not need to know
+where progress and completed result files are assembled.
 
 Minimum shape:
 
@@ -162,44 +163,40 @@ Recommended fields:
 ## Training Script Pattern
 
 ```python
-from utils.progress_tracker import ProgressTracker
-from utils.monitoring import write_final_result
+from utils.monitoring import MonitorRun
 
 experiment_id = f"my_experiment_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-tracker = ProgressTracker(experiment_id=experiment_id, logs_dir=config.SEG_LOG_DIR)
-tracker.plan_folds([...])
+monitor = MonitorRun(experiment_id=experiment_id, logs_dir=config.SEG_LOG_DIR)
+monitor.plan_folds([...])
 
 try:
     results = []
     for fold in folds:
-        tracker.start_fold(...)
+        monitor.start_fold(...)
         ...
-        tracker.update_epoch(...)
+        monitor.update_epoch(...)
         ...
-        tracker.finish_fold(...)
+        monitor.finish_fold(...)
         results.append(...)
 
     mean_dice = ...
     std_dice = ...
-    tracker.finish_experiment(mean_dice, results)
 
-    output_file = write_final_result(
-        logs_dir=config.SEG_LOG_DIR,
+    output_file = monitor.finish(
         result_prefix="results_my_experiment",
         split_mode="my_experiment",
-        experiment_id=experiment_id,
         mean_dice=mean_dice,
         std_dice=std_dice,
         fold_results=results,
         extra={"audit_file": str(audit_path)},
     )
 except Exception as exc:
-    tracker.mark_error(str(exc))
+    monitor.mark_error(exc)
     raise
 ```
 
 ## Boundary
 
 The monitor may depend on JSON field names, but it should not depend on Python
-training modules. Training code may depend on `ProgressTracker` and
-`write_final_result`, but it should not call monitor APIs or know about Flask.
+training modules. New training code should depend on `MonitorRun` rather than
+calling Flask APIs or hand-writing monitor JSON.

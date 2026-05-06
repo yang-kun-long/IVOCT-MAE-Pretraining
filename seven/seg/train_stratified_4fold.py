@@ -10,8 +10,7 @@ sys.path.insert(1, str(Path(__file__).parent.parent))
 
 import config_seg as config
 from train_seg import train_fold
-from utils.progress_tracker import ProgressTracker
-from utils.monitoring import write_final_result
+from utils.monitoring import MonitorRun
 import json
 from datetime import datetime
 import torch
@@ -56,10 +55,8 @@ def main():
 
     # Initialize progress tracker
     experiment_id = f"stratified_4fold_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    tracker = ProgressTracker(
-        experiment_id=experiment_id,
-        logs_dir=config.SEG_LOG_DIR
-    )
+    monitor = MonitorRun(experiment_id=experiment_id, logs_dir=config.SEG_LOG_DIR)
+    tracker = monitor.tracker
     print(f"Experiment ID: {experiment_id}")
     print(f"Progress tracking enabled: {config.SEG_LOG_DIR / f'progress_{experiment_id}.json'}")
 
@@ -144,13 +141,9 @@ def main():
             print(f"  Fold {result['fold']}: {result['best_dice']:.4f}")
 
         # Mark experiment as completed
-        tracker.finish_experiment(mean_dice=mean_dice, all_results=all_results)
-
-        output_file = write_final_result(
-            logs_dir=config.SEG_LOG_DIR,
+        output_file = monitor.finish(
             result_prefix="results_stratified",
             split_mode="stratified_4fold",
-            experiment_id=experiment_id,
             mean_dice=mean_dice,
             fold_results=all_results,
         )
@@ -160,7 +153,7 @@ def main():
 
     except Exception as e:
         # Mark experiment as error
-        tracker.mark_error(str(e))
+        monitor.mark_error(e)
         print(f"\n✗ Experiment failed: {e}")
         raise
 

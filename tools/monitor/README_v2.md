@@ -40,21 +40,17 @@
 }
 ```
 
-### 步骤2：修改训练脚本（集成ProgressTracker）
+### 步骤2：修改训练脚本（集成 MonitorRun）
 
 在训练脚本中添加进度追踪：
 
 ```python
-from utils.progress_tracker import ProgressTracker
+from utils.monitoring import MonitorRun
 
-# 初始化tracker
-tracker = ProgressTracker(
-    experiment_id="stratified_4fold_20260505",
-    logs_dir=Path("logs")
-)
+monitor = MonitorRun(experiment_id="stratified_4fold_20260505", logs_dir=Path("logs"))
 
 # 开始fold
-tracker.start_fold(
+monitor.start_fold(
     fold_idx=0,
     total_epochs=180,
     train_patients=train_patients,
@@ -62,7 +58,7 @@ tracker.start_fold(
 )
 
 # 每个epoch结束后更新
-tracker.update_epoch(
+monitor.update_epoch(
     fold_idx=0,
     epoch=epoch,
     train_loss=train_loss,
@@ -72,10 +68,15 @@ tracker.update_epoch(
 )
 
 # fold完成
-tracker.finish_fold(fold_idx=0, best_dice=best_dice, metrics=metrics)
+monitor.finish_fold(fold_idx=0, best_dice=best_dice, metrics=metrics)
 
 # 实验完成
-tracker.finish_experiment(mean_dice=mean_dice, all_results=all_results)
+monitor.finish(
+    result_prefix="results_stratified",
+    split_mode="stratified_4fold",
+    mean_dice=mean_dice,
+    fold_results=all_results,
+)
 ```
 
 ### 步骤3：启动监控服务
