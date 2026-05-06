@@ -8,6 +8,13 @@ DATA_backup_*/
 *.pt
 *.ckpt
 
+# Generated review/export artifacts
+result/hard_patient_review_*/
+result/best_patient_review_*/
+result/sensitivity_v2_*/
+result/review_pack_20260423/
+seven/seg/backups/
+
 # MAE/segmentation generated training artifacts
 seven/checkpoints_v2/
 seven/logs_v2/
