@@ -204,7 +204,11 @@ def aggregate_batch(batch_id, members, logs_dir, dry_run, force):
     for old in existing_synthetics:
         old.unlink()
 
-    synth_path.write_text(json.dumps(synthetic, indent=2), encoding="utf-8")
+    # Important ordering: mark originals hidden FIRST, then write synthetic.
+    # composite_config's latest_result() picks by mtime — if we wrote synthetic
+    # first and then re-saved the originals (touching their mtime), the
+    # originals would win the latest_result race and the Expanded-8 / Full
+    # LOPO18 panels would only see one worker fold instead of the merged set.
     for path, data in members:
         mark_original_hidden(path, data, synth_path.name, dry_run=False)
         print(f"  hid original   : {path.name}")
@@ -214,14 +218,20 @@ def aggregate_batch(batch_id, members, logs_dir, dry_run, force):
         if progress_hidden:
             print(f"  hid progress   : {progress_hidden.name}")
 
+    synth_path.write_text(json.dumps(synthetic, indent=2), encoding="utf-8")
+
     return synth_path
 
 
 def _peek_batch_id(path):
     try:
-        return json.loads(path.read_text(encoding="utf-8")).get("batch_id")
+        data = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return None
+    # batch_id may be at top level (worker outputs) or in metadata.source_batch_id
+    # (synthetic outputs since the batch_id was moved into metadata to avoid
+    # triggering frontend batch grouping on the synthetic itself).
+    return data.get("batch_id") or (data.get("metadata") or {}).get("source_batch_id")
 
 
 def main():
