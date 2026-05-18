@@ -61,7 +61,13 @@ def write_final_result(
     """
     logs_dir = Path(logs_dir)
     logs_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = timestamp or datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Microsecond + PID suffix: parallel workers that finish in the same
+    # second otherwise collide and overwrite each other's result files
+    # (observed in Round 3: fold 2 and fold 3 both wrote results_..._154723.json
+    # within the same second, P004 data was lost until recovered from progress).
+    timestamp = timestamp or (
+        datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3] + f"_{os.getpid()}"
+    )
     batch_id = batch_id if batch_id is not None else os.environ.get("BATCH_ID") or None
 
     final: dict[str, Any] = {
