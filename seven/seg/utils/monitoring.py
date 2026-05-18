@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -49,15 +50,19 @@ def write_final_result(
     std_dice: float | None = None,
     extra: dict[str, Any] | None = None,
     timestamp: str | None = None,
+    batch_id: str | None = None,
 ) -> Path:
     """Write a completed result JSON that `/root/monitor` can discover.
 
     The monitor scans `results_*.json` and expects completed runs to include
     `fold_results` plus optional `epoch_history` copied from the progress file.
+    Pass `batch_id` (or set BATCH_ID env var) so the monitor can group sibling
+    workers from the same parallel launch under one virtual node.
     """
     logs_dir = Path(logs_dir)
     logs_dir.mkdir(parents=True, exist_ok=True)
     timestamp = timestamp or datetime.now().strftime("%Y%m%d_%H%M%S")
+    batch_id = batch_id if batch_id is not None else os.environ.get("BATCH_ID") or None
 
     final: dict[str, Any] = {
         "split_mode": split_mode,
@@ -70,6 +75,8 @@ def write_final_result(
     }
     if std_dice is not None:
         final["std_dice"] = float(std_dice)
+    if batch_id:
+        final["batch_id"] = batch_id
     if extra:
         final.update(json_safe(extra))
 
@@ -81,10 +88,17 @@ def write_final_result(
 class MonitorRun:
     """Facade for the progress/result files consumed by the monitor UI."""
 
-    def __init__(self, experiment_id: str, logs_dir: Path):
+    def __init__(self, experiment_id: str, logs_dir: Path, batch_id: str | None = None):
         self.experiment_id = experiment_id
         self.logs_dir = Path(logs_dir)
-        self.tracker = ProgressTracker(experiment_id=experiment_id, logs_dir=self.logs_dir)
+        # Same env-var fallback as ProgressTracker so a shell launcher can
+        # group all workers under one batch without touching call sites.
+        self.batch_id = batch_id if batch_id is not None else os.environ.get("BATCH_ID") or None
+        self.tracker = ProgressTracker(
+            experiment_id=experiment_id,
+            logs_dir=self.logs_dir,
+            batch_id=self.batch_id,
+        )
 
     @property
     def progress_file(self) -> Path:
@@ -139,4 +153,5 @@ class MonitorRun:
             std_dice=std_dice,
             fold_results=fold_results,
             extra=extra,
+            batch_id=self.batch_id,
         )

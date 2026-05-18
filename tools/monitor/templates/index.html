@@ -13,7 +13,7 @@
             color: #e2e8f0;
             padding: 20px;
         }
-        .container { max-width: 1400px; margin: 0 auto; }
+        .container { max-width: 1700px; margin: 0 auto; }
         h1 {
             font-size: 28px;
             margin-bottom: 10px;
@@ -24,12 +24,55 @@
         .subtitle { color: #94a3b8; margin-bottom: 30px; }
 
         /* 实验列表 */
-        .experiments-grid {
+        .experiment-sections {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 20px;
+            gap: 14px;
             margin-bottom: 40px;
         }
+        .experiment-section {
+            background: rgba(15, 23, 42, 0.45);
+            border: 1px solid #334155;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .section-header {
+            width: 100%;
+            background: #1e293b;
+            color: #e2e8f0;
+            border: 0;
+            cursor: pointer;
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            text-align: left;
+        }
+        .section-header:hover { background: #263449; }
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 15px;
+            font-weight: 700;
+        }
+        .section-caret {
+            color: #94a3b8;
+            font-size: 13px;
+            width: 16px;
+        }
+        .section-meta {
+            color: #94a3b8;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        .section-body {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 16px;
+            padding: 16px;
+        }
+        .experiment-section.collapsed .section-body { display: none; }
         .experiment-card {
             background: #1e293b;
             border-radius: 12px;
@@ -54,6 +97,47 @@
             0%, 100% { border-color: #10b981; }
             50% { border-color: #34d399; }
         }
+        .experiment-card.batch-card {
+            cursor: default;
+            background: #1a2540;
+            border-color: #475569;
+        }
+        .experiment-card.batch-card:hover {
+            transform: none;
+            border-color: #64748b;
+        }
+        .experiment-card.batch-card.running {
+            border-color: #10b981;
+        }
+        .batch-members-list {
+            margin: 10px 0 6px 0;
+            padding: 8px 10px;
+            background: #0f172a;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .batch-member {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.88em;
+            color: #cbd5e1;
+            transition: background 0.15s;
+        }
+        .batch-member:hover {
+            background: #1e293b;
+            color: #f1f5f9;
+        }
+        .member-status { width: 16px; }
+        .member-fold { min-width: 60px; font-weight: 600; color: #93c5fd; }
+        .member-epoch { min-width: 90px; color: #94a3b8; }
+        .member-dice { min-width: 110px; color: #34d399; font-variant-numeric: tabular-nums; }
+        .member-pct { margin-left: auto; color: #fbbf24; font-variant-numeric: tabular-nums; }
         .exp-header {
             display: flex;
             justify-content: space-between;
@@ -71,6 +155,12 @@
         .status-running { background: #065f46; color: #6ee7b7; }
         .status-error { background: #7f1d1d; color: #fca5a5; }
         .exp-meta { font-size: 13px; color: #94a3b8; margin-bottom: 8px; }
+        .exp-remark {
+            font-size: 13px;
+            color: #cbd5e1;
+            line-height: 1.45;
+            margin-bottom: 8px;
+        }
         .exp-flags {
             display: flex;
             flex-wrap: wrap;
@@ -111,6 +201,45 @@
             display: none;
         }
         .detail-panel.active { display: block; }
+
+        /* 两栏 sticky 布局: 宽屏左侧列表 / 右侧详情自固定 */
+        .main-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        @media (min-width: 1100px) {
+            .main-layout {
+                display: grid;
+                grid-template-columns: 420px 1fr;
+                gap: 24px;
+                align-items: start;
+            }
+            #experiments-list.experiments-grid {
+                max-height: calc(100vh - 180px);
+                overflow-y: auto;
+                padding-right: 8px;
+            }
+            .detail-panel {
+                position: sticky;
+                top: 16px;
+                max-height: calc(100vh - 32px);
+                overflow-y: auto;
+            }
+            .detail-panel.active { display: block; }
+            .detail-panel:not(.active) {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 200px;
+                background: #1a2540;
+                color: #64748b;
+                font-size: 14px;
+            }
+            .detail-panel:not(.active)::before {
+                content: '← 点击左侧实验查看详情';
+            }
+        }
         .detail-header {
             display: flex;
             justify-content: space-between;
@@ -228,12 +357,14 @@
         <h1>🔬 IVOCT 分割训练监控</h1>
         <p class="subtitle">实时追踪实验进度和性能指标</p>
 
-        <div id="experiments-list" class="experiments-grid">
-            <div class="loading">加载实验列表...</div>
-        </div>
+        <div class="main-layout">
+            <div id="experiments-list" class="experiments-grid">
+                <div class="loading">加载实验列表...</div>
+            </div>
 
-        <div id="detail-panel" class="detail-panel">
-            <!-- 动态内容 -->
+            <div id="detail-panel" class="detail-panel">
+                <!-- 动态内容 -->
+            </div>
         </div>
     </div>
 
@@ -241,6 +372,12 @@
         let currentExperimentId = null;
         let charts = {};
         let refreshInterval = null;
+        const chartVisibilityState = {};
+        const collapsedSections = {
+            running: false,
+            completed: true,
+            other: true
+        };
 
         function formatTime(value) {
             if (!value) return '-';
@@ -279,6 +416,221 @@
             return `${hours} 小时 ${minutes} 分钟`;
         }
 
+        function experimentGroup(exp) {
+            if (exp.status === 'running') return 'running';
+            if (exp.status === 'completed') return 'completed';
+            return 'other';
+        }
+
+        function groupTitle(key) {
+            if (key === 'running') return '运行中';
+            if (key === 'completed') return '已完成';
+            return '异常/其他';
+        }
+
+        function groupIcon(key) {
+            if (key === 'running') return '🟢';
+            if (key === 'completed') return '✅';
+            return '❌';
+        }
+
+        function sectionLatestTime(experiments) {
+            const latest = experiments
+                .map(exp => exp.updated_at || exp.timestamp)
+                .filter(Boolean)
+                .map(value => new Date(value))
+                .filter(date => !Number.isNaN(date.getTime()))
+                .sort((a, b) => b - a)[0];
+            return latest ? latest.toISOString() : null;
+        }
+
+        function toggleExperimentSection(key) {
+            collapsedSections[key] = !collapsedSections[key];
+            const section = document.querySelector(`[data-section="${key}"]`);
+            if (!section) return;
+            section.classList.toggle('collapsed', collapsedSections[key]);
+            const caret = section.querySelector('.section-caret');
+            if (caret) caret.textContent = collapsedSections[key] ? '▶' : '▼';
+        }
+
+        function renderBatchMembers(members) {
+            return members.map(m => {
+                const epoch = m.progress?.completed_epochs && m.progress?.total_epochs
+                    ? `${m.progress.completed_epochs}/${m.progress.total_epochs}`
+                    : (m.status === 'completed' ? '已完成' : '...');
+                const pct = m.progress?.percent != null ? `${m.progress.percent.toFixed(0)}%` : (m.status === 'completed' ? '100%' : '');
+                const dice = m.mean_dice !== undefined && m.mean_dice !== null
+                    ? `Dice ${(m.mean_dice * 100).toFixed(2)}%` : '';
+                const statusIcon = m.status === 'running' ? '🟢' : (m.status === 'completed' ? '✅' : '⏳');
+                const foldLabel = m.current_fold !== undefined && m.current_fold !== null
+                    ? `Fold ${m.current_fold}` : (m.id || '').split('_').slice(-2).join('_');
+                return `
+                    <div class="batch-member" onclick="event.stopPropagation(); selectExperiment('${m.id}')">
+                        <span class="member-status">${statusIcon}</span>
+                        <span class="member-fold">${foldLabel}</span>
+                        <span class="member-epoch">epoch ${epoch}</span>
+                        ${dice ? `<span class="member-dice">${dice}</span>` : ''}
+                        ${pct ? `<span class="member-pct">${pct}</span>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function groupExperimentsByBatch(experiments) {
+            // Collect siblings sharing batch_id into one virtual parent card.
+            // Standalone experiments (no batch_id) pass through unchanged.
+            const batches = {};
+            const standalone = [];
+            for (const exp of experiments) {
+                if (!exp.batch_id) {
+                    standalone.push(exp);
+                    continue;
+                }
+                if (!batches[exp.batch_id]) batches[exp.batch_id] = [];
+                batches[exp.batch_id].push(exp);
+            }
+            const result = [...standalone];
+            for (const [batchId, members] of Object.entries(batches)) {
+                members.sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''));
+                const first = members[0];
+                const anyRunning = members.some(m => m.status === 'running');
+                const allCompleted = members.every(m => m.status === 'completed');
+                const completedMembers = members.filter(m => m.status === 'completed');
+                const completedDices = completedMembers
+                    .map(m => m.mean_dice)
+                    .filter(d => d !== undefined && d !== null);
+                const meanDice = completedDices.length
+                    ? completedDices.reduce((a, b) => a + b, 0) / completedDices.length
+                    : undefined;
+                const totalEpochs = members.reduce((s, m) => s + (m.progress?.total_epochs || 0), 0);
+                const completedEpochs = members.reduce((s, m) => s + (m.progress?.completed_epochs || 0), 0);
+                const elapsedSec = Math.max(0, ...members.map(m => m.progress?.elapsed_seconds || 0));
+                const etaSec = Math.max(0, ...members.map(m => m.progress?.eta_seconds || 0));
+                result.push({
+                    id: `batch:${batchId}`,
+                    is_batch: true,
+                    batch_id: batchId,
+                    members: members,
+                    name: `${first.name} · ${members.length} fold 并发`,
+                    description: first.description,
+                    remark: first.remark,
+                    strategy: first.strategy,
+                    split_mode: first.split_mode,
+                    source_id: `batch ${batchId}`,
+                    status: anyRunning ? 'running' : (allCompleted ? 'completed' : 'other'),
+                    timestamp: members.map(m => m.timestamp).filter(Boolean).sort()[0] || first.timestamp,
+                    updated_at: members.map(m => m.updated_at).filter(Boolean).sort().reverse()[0] || first.updated_at,
+                    mean_dice: meanDice,
+                    num_folds: completedMembers.length,
+                    expected_folds: members.length,
+                    progress: anyRunning ? {
+                        completed_epochs: completedEpochs,
+                        total_epochs: totalEpochs,
+                        percent: totalEpochs ? Math.min(100, completedEpochs / totalEpochs * 100) : 0,
+                        elapsed_seconds: elapsedSec,
+                        eta_seconds: etaSec,
+                        remaining_epochs: Math.max(0, totalEpochs - completedEpochs),
+                        eta_at: null,
+                    } : null,
+                    has_epoch_history: true,
+                    history_source: first.history_source,
+                    history_quality: 'verified',
+                    history_quality_notes: [],
+                    is_composite_panel: false,
+                    is_partial: !allCompleted && !anyRunning,
+                });
+            }
+            return result.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+        }
+
+        function renderExperimentCard(exp) {
+            if (exp.is_batch) {
+                const statusLabel = exp.status === 'running' ? '🟢 运行中'
+                    : exp.status === 'completed' ? '✅ 已完成' : '⚠️ 部分完成';
+                return `
+                    <div class="experiment-card batch-card ${exp.status === 'running' ? 'running' : ''}">
+                        <div class="exp-header">
+                            <div class="exp-name">📦 ${exp.name}</div>
+                            <div class="exp-status status-${exp.status}">${statusLabel}</div>
+                        </div>
+                        ${exp.remark ? `<div class="exp-remark">${exp.remark}</div>` : ''}
+                        <div class="exp-meta">${exp.strategy ? `策略: ${exp.strategy}` : (exp.split_mode || '')}</div>
+                        ${exp.progress ? `<div class="exp-meta">总进度: ${exp.progress.percent.toFixed(1)}% · ETA ${formatDuration(exp.progress.eta_seconds)}</div>` : ''}
+                        <div class="batch-members-list">${renderBatchMembers(exp.members)}</div>
+                        <div class="exp-flags">
+                            <span class="exp-flag good">batch · ${exp.expected_folds} fold 并发</span>
+                            ${exp.num_folds > 0 && exp.num_folds < exp.expected_folds ? `<span class="exp-flag warning">${exp.num_folds}/${exp.expected_folds} 完成</span>` : ''}
+                        </div>
+                        ${exp.mean_dice !== undefined && exp.mean_dice !== null ? `<div class="exp-dice">已完成均值 Dice: ${(exp.mean_dice * 100).toFixed(2)}%</div>` : ''}
+                        <div class="exp-meta">实验时间: ${formatTime(exp.timestamp)}</div>
+                        <div class="exp-meta">batch_id: ${exp.batch_id}</div>
+                    </div>
+                `;
+            }
+            return `
+                <div class="experiment-card ${exp.status === 'running' ? 'running' : ''} ${exp.id === currentExperimentId ? 'active' : ''}"
+                     onclick="selectExperiment('${exp.id}')">
+                    <div class="exp-header">
+                        <div class="exp-name">${exp.name}</div>
+                        <div class="exp-status status-${exp.status}">
+                            ${exp.status === 'running' ? '🟢 运行中' : exp.status === 'completed' ? '✅ 已完成' : '❌ 错误'}
+                        </div>
+                    </div>
+                    ${exp.remark ? `<div class="exp-remark">${exp.remark}</div>` : exp.description ? `<div class="exp-remark">${exp.description}</div>` : ''}
+                    <div class="exp-meta">
+                        ${exp.strategy ? `策略: ${exp.strategy}` : exp.split_mode}
+                        ${exp.current_fold !== undefined ? ` · 当前 Fold ${exp.current_fold}` : ''}
+                    </div>
+                    ${exp.progress ? `<div class="exp-meta">进度: ${exp.progress.percent.toFixed(1)}% · ETA ${formatDuration(exp.progress.eta_seconds)}</div>` : ''}
+                    <div class="exp-flags">
+                        ${exp.is_composite_panel ? `<span class="exp-flag good">${exp.panel?.name || '分层复用'} · 复用${exp.panel?.copied_folds || 0}折</span>` : ''}
+                        ${exp.is_partial ? `<span class="exp-flag warning">部分结果 ${exp.num_folds}/${exp.expected_folds}</span>` : ''}
+                        <span class="exp-flag ${qualityClass(exp.history_quality)}">${qualityLabel(exp.history_quality)}</span>
+                        ${exp.has_epoch_history ? `<span class="exp-flag">${historyLabel(exp.history_source)}</span>` : `<span class="exp-flag">无曲线</span>`}
+                    </div>
+                    <div class="exp-meta">实验时间: ${formatTime(exp.timestamp)}</div>
+                    ${exp.source_id ? `<div class="exp-meta">ID: ${exp.source_id}</div>` : ''}
+                    ${exp.updated_at ? `<div class="exp-meta">文件更新: ${formatTime(exp.updated_at)}</div>` : ''}
+                    ${exp.mean_dice !== undefined ? `<div class="exp-dice">Dice: ${(exp.mean_dice * 100).toFixed(2)}%</div>` : ''}
+                </div>
+            `;
+        }
+
+        function renderExperimentSection(key, experiments) {
+            if (!experiments.length) return '';
+            if (experiments.some(exp => exp.id === currentExperimentId)) {
+                collapsedSections[key] = false;
+            }
+            const collapsed = collapsedSections[key];
+            const latest = sectionLatestTime(experiments);
+            return `
+                <section class="experiment-section ${collapsed ? 'collapsed' : ''}" data-section="${key}">
+                    <button class="section-header" type="button" onclick="toggleExperimentSection('${key}')">
+                        <span class="section-title">
+                            <span class="section-caret">${collapsed ? '▶' : '▼'}</span>
+                            <span>${groupIcon(key)} ${groupTitle(key)}</span>
+                            <span class="exp-flag">${experiments.length}</span>
+                        </span>
+                        <span class="section-meta">最近更新: ${formatTime(latest)}</span>
+                    </button>
+                    <div class="section-body">
+                        ${experiments.map(renderExperimentCard).join('')}
+                    </div>
+                </section>
+            `;
+        }
+
+        function foldStatusLabel(fold) {
+            if (fold.copied_from) return `↩ 复用 ${fold.copied_from}`;
+            if (fold.status === 'running') return '🟢 运行中';
+            if (fold.status === 'completed') return '✅ 已完成';
+            return '⏳ 等待中';
+        }
+
+        function hasFoldBestDice(fold) {
+            return fold.best_dice !== null && fold.best_dice !== undefined && Number(fold.best_dice) > 0;
+        }
+
         // 加载实验列表
         async function loadExperiments() {
             try {
@@ -286,31 +638,11 @@
                 const experiments = await res.json();
 
                 const container = document.getElementById('experiments-list');
-                container.innerHTML = experiments.map(exp => `
-                    <div class="experiment-card ${exp.status === 'running' ? 'running' : ''} ${exp.id === currentExperimentId ? 'active' : ''}"
-                         onclick="selectExperiment('${exp.id}')">
-                        <div class="exp-header">
-                            <div class="exp-name">${exp.name}</div>
-                            <div class="exp-status status-${exp.status}">
-                                ${exp.status === 'running' ? '🟢 运行中' : exp.status === 'completed' ? '✅ 已完成' : '❌ 错误'}
-                            </div>
-                        </div>
-                        ${exp.description ? `<div class="exp-meta">${exp.description}</div>` : ''}
-                        <div class="exp-meta">
-                            ${exp.strategy || exp.split_mode}
-                            ${exp.current_fold !== undefined ? ` · 当前 Fold ${exp.current_fold}` : ''}
-                        </div>
-                        ${exp.progress ? `<div class="exp-meta">进度: ${exp.progress.percent.toFixed(1)}% · ETA ${formatDuration(exp.progress.eta_seconds)}</div>` : ''}
-                        <div class="exp-flags">
-                            ${exp.is_partial ? `<span class="exp-flag warning">部分结果 ${exp.num_folds}/${exp.expected_folds}</span>` : ''}
-                            <span class="exp-flag ${qualityClass(exp.history_quality)}">${qualityLabel(exp.history_quality)}</span>
-                            ${exp.has_epoch_history ? `<span class="exp-flag">${historyLabel(exp.history_source)}</span>` : `<span class="exp-flag">无曲线</span>`}
-                        </div>
-                        <div class="exp-meta">实验时间: ${formatTime(exp.timestamp)}</div>
-                        ${exp.updated_at ? `<div class="exp-meta">文件更新: ${formatTime(exp.updated_at)}</div>` : ''}
-                        ${exp.mean_dice !== undefined ? `<div class="exp-dice">Dice: ${(exp.mean_dice * 100).toFixed(2)}%</div>` : ''}
-                    </div>
-                `).join('');
+                const groups = { running: [], completed: [], other: [] };
+                experiments.forEach(exp => groups[experimentGroup(exp)].push(exp));
+                container.innerHTML = ['running', 'completed', 'other']
+                    .map(key => renderExperimentSection(key, groups[key]))
+                    .join('') || '<div class="loading">暂无实验记录</div>';
             } catch (err) {
                 document.getElementById('experiments-list').innerHTML =
                     `<div class="error">加载失败: ${err.message}</div>`;
@@ -374,7 +706,7 @@
 
             panel.innerHTML = `
                 <div class="detail-header">
-                    <div class="detail-title">${currentExperimentId}</div>
+                    <div class="detail-title">${data.name || currentExperimentId}</div>
                     <div class="last-update">
                         ${isRunning ? '🟢 运行中 · ' : '✅ 已完成 · '}
                         实验时间: ${formatTime(data.last_update)}
@@ -384,9 +716,12 @@
                 </div>
 
                 <div class="exp-flags" style="margin-bottom: 18px;">
+                    ${data.is_composite_panel ? `<span class="exp-flag good">${data.panel?.name || '分层复用'} · 复用${data.panel?.copied_folds || 0}折</span>` : ''}
                     <span class="exp-flag ${qualityClass(quality)}">${qualityLabel(quality)}</span>
                     ${qualityNotes.map(note => `<span class="exp-flag ${quality === 'mismatch' ? 'danger' : 'warning'}">${note}</span>`).join('')}
                 </div>
+                ${data.remark ? `<div class="exp-remark">备注: ${data.remark}</div>` : ''}
+                ${data.strategy ? `<div class="exp-meta" style="margin-bottom: 18px;">策略: ${data.strategy}</div>` : ''}
 
                 ${isRunning ? `
                 ${progress ? `
@@ -426,8 +761,8 @@
                                 <div class="fold-header">
                                     <div class="fold-name">Fold ${fold.fold}</div>
                                     <div class="fold-status">
-                                        ${fold.status === 'running' ? '🟢 运行中' : '✅ 已完成'}
-                                        · Best Dice: ${(fold.best_dice * 100).toFixed(2)}%
+                                        ${foldStatusLabel(fold)}
+                                        ${hasFoldBestDice(fold) ? ` · Best Dice: ${(fold.best_dice * 100).toFixed(2)}%` : ''}
                                     </div>
                                 </div>
                                 <div class="progress-bar-container">
@@ -493,7 +828,7 @@
                     <tbody>
                         ${(data.fold_results || folds).map(fold => `
                             <tr>
-                                <td><strong>Fold ${fold.fold}</strong></td>
+                                <td><strong>Fold ${fold.fold}</strong>${fold.copied_from ? `<div class="progress-text">复用 ${fold.copied_from}</div>` : ''}</td>
                                 <td style="font-size: 12px;">${fold.train_patients ? fold.train_patients.join(', ') : '-'}</td>
                                 <td style="font-size: 12px;">${fold.val_patients ? fold.val_patients.join(', ') : '-'}</td>
                                 <td class="metric-value">${(fold.best_dice * 100).toFixed(2)}%</td>
@@ -530,6 +865,49 @@
             return result;
         }
 
+        function foldColor(fold, alpha = 1) {
+            const numericFold = Number.parseInt(fold, 10);
+            const colorIndex = Number.isFinite(numericFold)
+                ? numericFold
+                : String(fold).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+            const hue = (215 + colorIndex * 137.508) % 360;
+            return `hsla(${hue.toFixed(1)}, 68%, 62%, ${alpha})`;
+        }
+
+        function chartStateKey(chartName) {
+            return `${currentExperimentId || 'global'}::${chartName}`;
+        }
+
+        function datasetKey(dataset) {
+            return dataset.foldKey || dataset.label || '';
+        }
+
+        function isDatasetHidden(chartName, fold) {
+            const state = chartVisibilityState[chartStateKey(chartName)] || {};
+            return Boolean(state[String(fold)]);
+        }
+
+        function rememberChartVisibility(chartName, chart) {
+            const key = chartStateKey(chartName);
+            const state = chartVisibilityState[key] || {};
+            chart.data.datasets.forEach((dataset, index) => {
+                const fold = datasetKey(dataset);
+                if (!fold) return;
+                state[String(fold)] = !chart.isDatasetVisible(index);
+            });
+            chartVisibilityState[key] = state;
+        }
+
+        function legendOptions(chartName, extra = {}) {
+            return {
+                ...extra,
+                onClick(event, legendItem, legend) {
+                    Chart.defaults.plugins.legend.onClick.call(this, event, legendItem, legend);
+                    rememberChartVisibility(chartName, legend.chart);
+                }
+            };
+        }
+
         function renderRealtimeChart(chartData) {
             Object.values(charts).forEach(chart => chart.destroy());
             charts = {};
@@ -540,7 +918,6 @@
                 foldGroups[d.fold].push(d);
             });
 
-            const colors = ['#6ee7b7', '#f59e0b', '#93c5fd', '#fca5a5', '#c4b5fd'];
             const realtimeCtx = document.getElementById('realtimeChart');
             if (!realtimeCtx) return;
 
@@ -551,12 +928,14 @@
                         const sampled = downsampleSeries(data, 50);
                         return {
                             label: `Fold ${fold}`,
+                            foldKey: String(fold),
+                            hidden: isDatasetHidden('realtime', fold),
                             data: sampled.map(d => ({x: d.epoch, y: d.val_dice})),
-                            borderColor: colors[idx % colors.length],
-                            backgroundColor: colors[idx % colors.length] + '22',
+                            borderColor: foldColor(fold),
+                            backgroundColor: foldColor(fold, 0.14),
                             tension: 0.25,
                             pointRadius: sampled.map(d => d.is_best ? 5 : 2),
-                            pointBackgroundColor: sampled.map(d => d.is_best ? '#fbbf24' : colors[idx % colors.length])
+                            pointBackgroundColor: sampled.map(d => d.is_best ? '#fbbf24' : foldColor(fold))
                         };
                     })
                 },
@@ -564,7 +943,7 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     animation: false,
-                    plugins: { legend: { labels: { color: '#e2e8f0' } } },
+                    plugins: { legend: legendOptions('realtime', { labels: { color: '#e2e8f0' } }) },
                     scales: {
                         x: {
                             type: 'linear',
@@ -598,7 +977,7 @@
 
             panel.innerHTML = `
                 <div class="detail-header">
-                    <div class="detail-title">${currentExperimentId}</div>
+                    <div class="detail-title">${data.name || currentExperimentId}</div>
                     <div class="last-update">
                         Mean Dice: <span style="color: #667eea; font-size: 20px; font-weight: 700;">
                             ${(data.mean_dice * 100).toFixed(2)}%
@@ -608,9 +987,12 @@
                 </div>
 
                 <div class="exp-flags" style="margin-bottom: 18px;">
+                    ${data.is_composite_panel ? `<span class="exp-flag good">${data.panel?.name || '分层复用'} · 复用${data.panel?.copied_folds || 0}折</span>` : ''}
                     <span class="exp-flag ${qualityClass(quality)}">${qualityLabel(quality)}</span>
                     ${qualityNotes.map(note => `<span class="exp-flag ${quality === 'mismatch' ? 'danger' : 'warning'}">${note}</span>`).join('')}
                 </div>
+                ${data.remark ? `<div class="exp-remark">备注: ${data.remark}</div>` : ''}
+                ${data.strategy ? `<div class="exp-meta" style="margin-bottom: 18px;">策略: ${data.strategy}</div>` : ''}
 
                 <div class="charts-grid" style="margin-bottom: 30px;">
                     <div class="chart-container">
@@ -638,7 +1020,7 @@
                     <tbody>
                         ${foldResults.map(fold => `
                             <tr>
-                                <td><strong>Fold ${fold.fold}</strong></td>
+                                <td><strong>Fold ${fold.fold}</strong>${fold.copied_from ? `<div class="progress-text">复用 ${fold.copied_from}</div>` : ''}</td>
                                 <td style="font-size: 12px;">${fold.train_patients.join(', ')}</td>
                                 <td style="font-size: 12px;">${fold.val_patients.join(', ')}</td>
                                 <td class="metric-value">${(fold.best_dice * 100).toFixed(2)}%</td>
@@ -661,11 +1043,10 @@
             if (charts.foldDice) charts.foldDice.destroy();
             if (charts.foldMetrics) charts.foldMetrics.destroy();
 
-            const colors = ['#667eea', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
-
             // Dice柱状图
             const diceCtx = document.getElementById('foldDiceChart');
             if (diceCtx) {
+                const foldColors = foldResults.map(f => foldColor(f.fold));
                 charts.foldDice = new Chart(diceCtx, {
                     type: 'bar',
                     data: {
@@ -673,8 +1054,8 @@
                         datasets: [{
                             label: 'Best Dice',
                             data: foldResults.map(f => f.best_dice),
-                            backgroundColor: colors.slice(0, foldResults.length),
-                            borderColor: colors.slice(0, foldResults.length),
+                            backgroundColor: foldResults.map(f => foldColor(f.fold, 0.72)),
+                            borderColor: foldColors,
                             borderWidth: 2
                         }]
                     },
@@ -709,20 +1090,22 @@
             // 多指标对比雷达图
             const metricsCtx = document.getElementById('foldMetricsChart');
             if (metricsCtx) {
-                const datasets = foldResults.map((fold, idx) => ({
+                const datasets = foldResults.map((fold) => ({
                     label: `Fold ${fold.fold}`,
+                    foldKey: String(fold.fold),
+                    hidden: isDatasetHidden('foldMetrics', fold.fold),
                     data: [
                         fold.best_dice || 0,
                         fold.metrics?.iou_mean || 0,
                         fold.metrics?.sensitivity_mean || 0,
                         fold.metrics?.specificity_mean || 0
                     ],
-                    borderColor: colors[idx % colors.length],
-                    backgroundColor: colors[idx % colors.length] + '30',
-                    pointBackgroundColor: colors[idx % colors.length],
+                    borderColor: foldColor(fold.fold),
+                    backgroundColor: foldColor(fold.fold, 0.18),
+                    pointBackgroundColor: foldColor(fold.fold),
                     pointBorderColor: '#fff',
                     pointHoverBackgroundColor: '#fff',
-                    pointHoverBorderColor: colors[idx % colors.length]
+                    pointHoverBorderColor: foldColor(fold.fold)
                 }));
 
                 charts.foldMetrics = new Chart(metricsCtx, {
@@ -735,10 +1118,10 @@
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
-                            legend: {
+                            legend: legendOptions('foldMetrics', {
                                 labels: { color: '#e2e8f0' },
                                 position: 'bottom'
-                            }
+                            })
                         },
                         scales: {
                             r: {
@@ -769,25 +1152,25 @@
                 foldGroups[d.fold].push(d);
             });
 
-            const colors = ['#667eea', '#f59e0b', '#10b981', '#ef4444'];
-
             const lossCtx = document.getElementById('lossChart');
             if (lossCtx) {
                 charts.loss = new Chart(lossCtx, {
                     type: 'line',
                     data: {
-                        datasets: Object.entries(foldGroups).map(([fold, data], idx) => ({
+                        datasets: Object.entries(foldGroups).map(([fold, data]) => ({
                             label: `Fold ${fold}`,
+                            foldKey: String(fold),
+                            hidden: isDatasetHidden('loss', fold),
                             data: data.map(d => ({x: d.epoch, y: d.train_loss})),
-                            borderColor: colors[idx % colors.length],
-                            backgroundColor: colors[idx % colors.length] + '20',
+                            borderColor: foldColor(fold),
+                            backgroundColor: foldColor(fold, 0.12),
                             tension: 0.3
                         }))
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: { legend: { labels: { color: '#e2e8f0' } } },
+                        plugins: { legend: legendOptions('loss', { labels: { color: '#e2e8f0' } }) },
                         scales: {
                             x: {
                                 type: 'linear',
@@ -806,20 +1189,22 @@
                 charts.dice = new Chart(diceCtx, {
                     type: 'line',
                     data: {
-                        datasets: Object.entries(foldGroups).map(([fold, data], idx) => ({
+                        datasets: Object.entries(foldGroups).map(([fold, data]) => ({
                             label: `Fold ${fold}`,
+                            foldKey: String(fold),
+                            hidden: isDatasetHidden('dice', fold),
                             data: data.map(d => ({x: d.epoch, y: d.val_dice})),
-                            borderColor: colors[idx % colors.length],
-                            backgroundColor: colors[idx % colors.length] + '20',
+                            borderColor: foldColor(fold),
+                            backgroundColor: foldColor(fold, 0.12),
                             tension: 0.3,
-                            pointBackgroundColor: data.map(d => d.is_best ? '#fbbf24' : colors[idx % colors.length]),
+                            pointBackgroundColor: data.map(d => d.is_best ? '#fbbf24' : foldColor(fold)),
                             pointRadius: data.map(d => d.is_best ? 6 : 3)
                         }))
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: { legend: { labels: { color: '#e2e8f0' } } },
+                        plugins: { legend: legendOptions('dice', { labels: { color: '#e2e8f0' } }) },
                         scales: {
                             x: {
                                 type: 'linear',

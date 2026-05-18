@@ -24,11 +24,14 @@ def _flock(file_obj, operation):
 class ProgressTracker:
     """实时进度追踪器"""
 
-    def __init__(self, experiment_id: str, logs_dir: Path):
+    def __init__(self, experiment_id: str, logs_dir: Path, batch_id: Optional[str] = None):
         self.experiment_id = experiment_id
         self.logs_dir = Path(logs_dir)
         self.progress_file = self.logs_dir / f"progress_{experiment_id}.json"
         self.logs_dir.mkdir(parents=True, exist_ok=True)
+        # Fall back to BATCH_ID env var so a shell launcher can group workers
+        # without each training script having to plumb the flag explicitly.
+        self.batch_id = batch_id if batch_id is not None else os.environ.get("BATCH_ID") or None
 
         # 初始化进度文件
         if not self.progress_file.exists():
@@ -44,6 +47,8 @@ class ProgressTracker:
             "current_fold": None,
             "folds": []
         }
+        if self.batch_id:
+            data["batch_id"] = self.batch_id
         self._write_json(data)
 
     def plan_folds(self, folds: list):
